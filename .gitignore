@@ -1,0 +1,13 @@
+node_modules
+.DS_Store
+.env
+.env.*
+!.env.example
+apps/api/node_modules
+apps/web/node_modules
+packages/shared/node_modules
+apps/api/dist
+packages/shared/dist
+apps/web/.next
+apps/web/tsconfig.tsbuildinfo
+*.log

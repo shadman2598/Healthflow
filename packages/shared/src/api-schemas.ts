@@ -1,0 +1,171 @@
+import { z } from "zod";
+
+export const userRoleSchema = z.enum(["PATIENT", "RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"]);
+
+export const appointmentStatusSchema = z.enum([
+  "SCHEDULED",
+  "CONFIRMED",
+  "COMPLETED",
+  "CANCELLED",
+  "RESCHEDULE_REQUESTED",
+  "MISSED"
+]);
+
+export const appointmentCategorySchema = z.enum([
+  "CHECKUP",
+  "FOLLOW_UP",
+  "MEDICATION",
+  "LAB_REVIEW",
+  "URGENT",
+  "CONSULTATION",
+  "OTHER"
+]);
+
+export const idParamSchema = z.object({ id: z.string().min(1) });
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8)
+});
+
+export const patientSignupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  phone: z.string().min(5),
+  healthcareNumber: z.string().min(4),
+  dateOfBirth: z.string().datetime().optional(),
+  privacyConsent: z.literal(true)
+});
+
+export const staffSignupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  inviteCode: z.string().min(6),
+  role: z.enum(["RECEPTIONIST", "DOCTOR"])
+});
+
+export const createStaffSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: userRoleSchema,
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  organizationId: z.string().min(1).optional()
+});
+
+export const selectClinicSchema = z.object({
+  organizationId: z.string().min(1)
+});
+
+export const createPatientSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(5)
+});
+
+export const createPatientProfileSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(5),
+  healthcareNumber: z.string().min(4),
+  dateOfBirth: z.string().datetime().optional(),
+  heightCm: z.number().positive().optional(),
+  weightKg: z.number().positive().optional(),
+  address: z.string().optional(),
+  internalNotes: z.string().optional(),
+  assignedDoctorId: z.string().optional(),
+  isRegularPatient: z.boolean().optional(),
+  reminderPrefEmail: z.boolean().optional(),
+  reminderPrefSms: z.boolean().optional(),
+  reminderPrefApp: z.boolean().optional()
+});
+
+export const updatePatientProfileSchema = createPatientProfileSchema.partial();
+
+export const updatePatientSchema = createPatientSchema.partial();
+
+export const appointmentsQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  status: appointmentStatusSchema.optional(),
+  doctorId: z.string().optional(),
+  patientId: z.string().optional(),
+  profileId: z.string().optional(),
+  category: appointmentCategorySchema.optional()
+});
+
+export const createAppointmentSchema = z.object({
+  patientId: z.string().min(1),
+  profileId: z.string().optional(),
+  doctorId: z.string().optional(),
+  scheduledAt: z.string().datetime(),
+  reason: z.string().optional(),
+  patientNotes: z.string().optional(),
+  staffNotes: z.string().optional(),
+  category: appointmentCategorySchema.default("CHECKUP"),
+  status: appointmentStatusSchema.default("SCHEDULED")
+});
+
+export const updateAppointmentSchema = z.object({
+  patientId: z.string().min(1).optional(),
+  doctorId: z.string().nullable().optional(),
+  scheduledAt: z.string().datetime().optional(),
+  reason: z.string().nullable().optional(),
+  patientNotes: z.string().nullable().optional(),
+  staffNotes: z.string().nullable().optional(),
+  category: appointmentCategorySchema.optional(),
+  status: appointmentStatusSchema.optional()
+});
+
+export const updateReminderRuleSchema = z.object({ enabled: z.boolean() });
+
+export const reminderLogsQuerySchema = z.object({
+  appointmentId: z.string().optional(),
+  patientId: z.string().optional()
+});
+
+export const createMessageThreadSchema = z.object({
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1).max(5000),
+  priority: z.enum(["NORMAL", "HIGH"]).default("NORMAL")
+});
+
+export const replyMessageSchema = z.object({
+  body: z.string().min(1).max(5000),
+  isInternal: z.boolean().default(false)
+});
+
+export const updateThreadSchema = z.object({
+  status: z.enum(["UNREAD", "READ", "PENDING", "RESOLVED", "ARCHIVED"]).optional(),
+  assignedDoctorId: z.string().nullable().optional(),
+  priority: z.enum(["NORMAL", "HIGH"]).optional()
+});
+
+export const createReminderSchema = z.object({
+  appointmentId: z.string().min(1),
+  offsetMinutes: z.number().int().positive(),
+  channel: z.enum(["EMAIL", "SMS", "IN_APP"]).default("EMAIL"),
+  dailyUntilAppt: z.boolean().default(false)
+});
+
+export const resourceSearchSchema = z.object({
+  postalCode: z.string().min(3),
+  category: z.string().min(1)
+});
+
+export const patientsQuerySchema = z.object({
+  q: z.string().optional(),
+  sort: z.enum(["name", "visits", "recent", "upcoming", "newest"]).default("name")
+});
+
+export const createInviteSchema = z.object({
+  role: z.enum(["RECEPTIONIST", "DOCTOR"]),
+  email: z.string().email().optional(),
+  expiresInDays: z.number().int().positive().default(30)
+});
