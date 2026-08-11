@@ -42,6 +42,12 @@ enum ReminderChannel {
   IN_APP
 }
 
+enum ReminderFrequency {
+  DAY_BEFORE
+  WEEKLY
+  EVERY_DAY
+}
+
 enum ReminderStatus {
   SCHEDULED
   SENT
@@ -109,6 +115,8 @@ model ReminderLog {
   patientId         String
   ruleId            String?
   channel           ReminderChannel   @default(EMAIL)
+  /// Dedup key: "once" for one-shot rules, "day:YYYY-MM-DD" / "week:YYYY-Www" for recurring prefs.
+  occurrenceKey     String            @default("once")
   providerMessageId String?
   status            ReminderLogStatus @default(PENDING)
   error             String?
@@ -120,7 +128,7 @@ model ReminderLog {
   patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
   rule         ReminderRule? @relation(fields: [ruleId], references: [id], onDelete: Restrict)
 
-  @@unique([appointmentId, ruleId, channel])
+  @@unique([appointmentId, ruleId, channel, occurrenceKey])
   @@index([appointmentId, createdAt])
   @@index([patientId, createdAt])
   @@index([organizationId, createdAt])
@@ -193,6 +201,8 @@ model PatientProfile {
   reminderPrefEmail Boolean   @default(true)
   reminderPrefSms   Boolean   @default(false)
   reminderPrefApp   Boolean   @default(true)
+  /// How often to remind before an upcoming appointment.
+  reminderFrequency ReminderFrequency @default(DAY_BEFORE)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

@@ -1,4 +1,9 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+/**
+ * Call the Express API through a same-origin Next rewrite (`/api/backend/*`).
+ * That keeps auth cookies first-party and avoids collisions with App Router pages
+ * like `/appointments` and `/messages`.
+ */
+const API_BASE = "/api/backend";
 
 export class ApiError extends Error {
   public readonly status: number;

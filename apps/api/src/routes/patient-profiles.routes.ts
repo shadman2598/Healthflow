@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createPatientProfileSchema,
   idParamSchema,
+  patientReminderPrefsSchema,
   patientsQuerySchema,
   updatePatientProfileSchema
 } from "@technovate/shared";
@@ -82,7 +83,11 @@ patientProfilesRouter.get(
           appointments: { orderBy: { scheduledAt: "desc" }, take: 5 }
         }
       });
-      res.json({ profiles: profile ? [profile] : [] });
+      res.json({
+        profiles: profile
+          ? [{ ...profile, healthcareNumber: maskHealthcareNumber(profile.healthcareNumber) }]
+          : []
+      });
       return;
     }
 
@@ -261,7 +266,7 @@ patientProfilesRouter.post(
   "/:id/reveal-hcn",
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
-    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+    if (!canViewPatient(req.auth!, id)) throw new AppError("Forbidden", 403);
 
     const profile = await prisma.patientProfile.findFirst({
       where: { id, organizationId: req.auth!.activeOrganizationId }
@@ -286,14 +291,45 @@ patientProfilesRouter.put(
   "/:id",
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
-    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+    const auth = req.auth!;
+    const isPatientSelf =
+      auth.role === "PATIENT" && (auth.patientProfileId === id || canViewPatient(auth, id));
 
-    const data = updatePatientProfileSchema.parse(req.body);
+    if (!canManagePatients(auth) && !isPatientSelf) {
+      throw new AppError("Forbidden", 403);
+    }
+
     const existing = await prisma.patientProfile.findFirst({
-      where: { id, organizationId: req.auth!.activeOrganizationId }
+      where: { id, organizationId: auth.activeOrganizationId }
     });
     if (!existing) throw new AppError("Patient not found", 404);
 
+    if (auth.role === "PATIENT") {
+      if (existing.userId !== auth.userId) throw new AppError("Forbidden", 403);
+      const prefs = patientReminderPrefsSchema.parse(req.body);
+      const profile = await prisma.patientProfile.update({
+        where: { id },
+        data: prefs
+      });
+
+      await writeAuditLog({
+        organizationId: auth.activeOrganizationId,
+        actorId: auth.userId,
+        actorRole: auth.role,
+        action: "PATIENT_UPDATED",
+        targetType: "PatientProfile",
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { fields: Object.keys(prefs) }
+      });
+
+      res.json({
+        profile: { ...profile, healthcareNumber: maskHealthcareNumber(profile.healthcareNumber) }
+      });
+      return;
+    }
+
+    const data = updatePatientProfileSchema.parse(req.body);
     const profile = await prisma.patientProfile.update({
       where: { id },
       data: {
@@ -306,9 +342,9 @@ patientProfilesRouter.put(
     });
 
     await writeAuditLog({
-      organizationId: req.auth!.activeOrganizationId,
-      actorId: req.auth!.userId,
-      actorRole: req.auth!.role,
+      organizationId: auth.activeOrganizationId,
+      actorId: auth.userId,
+      actorRole: auth.role,
       action: "PATIENT_UPDATED",
       targetType: "PatientProfile",
       targetId: id,

@@ -181,8 +181,13 @@ authRouter.post(
   loginLimiter,
   asyncHandler(async (req, res) => {
     const body = staffSignupSchema.parse(req.body);
+    const inviteCode = body.inviteCode.trim().toUpperCase();
 
-    const invite = await prisma.roleInvite.findUnique({ where: { code: body.inviteCode } });
+    if (body.role !== "RECEPTIONIST" && body.role !== "DOCTOR") {
+      throw new AppError("Staff sign-up is limited to doctor and receptionist roles", 403);
+    }
+
+    const invite = await prisma.roleInvite.findUnique({ where: { code: inviteCode } });
     if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
       throw new AppError("Invalid or expired invite code", 400);
     }
@@ -347,6 +352,10 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = createStaffSchema.parse(req.body);
     const targetOrganizationId = body.organizationId ?? req.auth!.activeOrganizationId;
+
+    if (body.role === "ADMIN" && req.auth!.role !== "ADMIN" && req.auth!.role !== "SUPER_ADMIN") {
+      throw new AppError("Only administrators can create admin accounts", 403);
+    }
 
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) throw new AppError("Email already exists", 409);

@@ -5,7 +5,7 @@ import { AuthGuard } from "./AuthGuard";
 
 export function ProtectedPage({ children }: { children: React.ReactNode }) {
   return (
-    <AuthGuard>
+    <AuthGuard staffOnly>
       <AppShell>{children}</AppShell>
     </AuthGuard>
   );

@@ -117,6 +117,13 @@ export default function PatientSignupPage() {
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Already have an account?{" "}
+          <Link href="/login/patient" className="font-medium text-brand-600 hover:text-brand-700">
+            Sign in
+          </Link>
+        </p>
       </div>
     </div>
   );

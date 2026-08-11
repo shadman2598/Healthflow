@@ -105,7 +105,31 @@ async function main(): Promise<void> {
       },
       {
         organizationId: clinic.id,
+        code: "HF-RECEPT-DEMO-1",
+        role: UserRole.RECEPTIONIST,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      },
+      {
+        organizationId: clinic.id,
+        code: "HF-RECEPT-DEMO-2",
+        role: UserRole.RECEPTIONIST,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      },
+      {
+        organizationId: clinic.id,
         code: "HF-DOCTOR-2026",
+        role: UserRole.DOCTOR,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      },
+      {
+        organizationId: clinic.id,
+        code: "HF-DOCTOR-DEMO-1",
+        role: UserRole.DOCTOR,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      },
+      {
+        organizationId: clinic.id,
+        code: "HF-DOCTOR-DEMO-2",
         role: UserRole.DOCTOR,
         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
       }

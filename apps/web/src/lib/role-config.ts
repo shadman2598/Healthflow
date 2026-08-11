@@ -9,7 +9,8 @@ export type NavIconKey =
   | "shield"
   | "alert"
   | "settings"
-  | "help";
+  | "help"
+  | "clipboard";
 
 export type NavItemConfig = {
   href: string;
@@ -20,10 +21,12 @@ export type NavItemConfig = {
 export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", NavItemConfig[]> = {
   PATIENT: [
     { href: "/patient/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/patient/care-guide", label: "Care Guide", icon: "clipboard" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/messages", label: "Messages", icon: "chat" },
     { href: "/patient/appointments", label: "Appointment History", icon: "calendar" },
-    { href: "/resources", label: "Resources", icon: "search" },
+    { href: "/patient/reminders", label: "Reminders", icon: "alert" },
+    { href: "/resources", label: "Fees & Resources", icon: "search" },
     { href: "/faq", label: "FAQ", icon: "help" },
     { href: "/patient/profile", label: "Profile", icon: "settings" }
   ],
@@ -34,7 +37,7 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
     { href: "/messages", label: "Messages", icon: "chat" },
     { href: "/reminders", label: "Reminders", icon: "alert" },
     { href: "/overdue-checkups", label: "Overdue Checkups", icon: "alert" },
-    { href: "/resources", label: "Resources", icon: "search" },
+    { href: "/resources", label: "Fees & Resources", icon: "search" },
     { href: "/faq", label: "FAQ", icon: "help" },
     { href: "/receptionist/settings", label: "Settings", icon: "settings" }
   ],
@@ -43,7 +46,7 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
     { href: "/patients", label: "Patients", icon: "users" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/messages", label: "Messages", icon: "chat" },
-    { href: "/resources", label: "Resources", icon: "search" },
+    { href: "/resources", label: "Fees & Resources", icon: "search" },
     { href: "/faq", label: "FAQ", icon: "help" }
   ],
   ADMIN: [
@@ -55,7 +58,7 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
     { href: "/reminders", label: "Reminders", icon: "alert" },
     { href: "/overdue-checkups", label: "Overdue Checkups", icon: "alert" },
     { href: "/admin/audit-logs", label: "Audit Logs", icon: "shield" },
-    { href: "/resources", label: "Resources", icon: "search" },
+    { href: "/resources", label: "Fees & Resources", icon: "search" },
     { href: "/faq", label: "FAQ", icon: "help" },
     { href: "/admin/settings", label: "Settings", icon: "settings" }
   ]

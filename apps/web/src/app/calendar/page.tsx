@@ -34,6 +34,8 @@ export default function CalendarPage() {
   useEffect(() => {
     const loadMeta = async (): Promise<void> => {
       try {
+        const { isGuestSession } = await import("../../lib/guest-session");
+        if (isGuestSession()) return;
         const [docRes, patientRes] = await Promise.all([
           apiRequest<{ doctors: { id: string; firstName: string; lastName: string }[] }>("/auth/doctors").catch(() => ({ doctors: [] })),
           apiRequest<{ profiles: { id: string; firstName: string; lastName: string }[] }>("/patient-profiles").catch(() => ({ profiles: [] }))
@@ -51,10 +53,17 @@ export default function CalendarPage() {
     const load = async (): Promise<void> => {
       setLoading(true);
       try {
+        const { isGuestSession } = await import("../../lib/guest-session");
+        if (isGuestSession()) {
+          setAppointments([]);
+          return;
+        }
         const res = await apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?${queryString}`);
         setAppointments(
           res.appointments.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
         );
+      } catch {
+        setAppointments([]);
       } finally {
         setLoading(false);
       }

@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ProtectedRolePage } from "../../components/healthflow/ProtectedRolePage";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { StatusBadge } from "../../components/ui/StatusBadge";
@@ -31,7 +32,24 @@ function relativeTime(iso: string): string {
 }
 
 export default function MessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"]}>
+          <div className="flex h-48 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+          </div>
+        </ProtectedRolePage>
+      }
+    >
+      <MessagesContent />
+    </Suspense>
+  );
+}
+
+function MessagesContent() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<HealthFlowUser | null>(null);
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -59,8 +77,23 @@ export default function MessagesPage() {
   };
 
   useEffect(() => {
+    const draft = searchParams.get("draft");
+    if (!draft) return;
+    setShowNewThread(true);
+    setNewSubject("Visit prep / question for my clinician");
+    setNewBody(draft);
+  }, [searchParams]);
+
+  useEffect(() => {
     const init = async (): Promise<void> => {
       try {
+        const { getGuestUser } = await import("../../lib/guest-session");
+        const guest = getGuestUser();
+        if (guest) {
+          setUser(guest);
+          setThreads([]);
+          return;
+        }
         const meRes = await apiRequest<{ user: HealthFlowUser }>("/auth/me");
         setUser(meRes.user);
         if (meRes.user.role !== "PATIENT") {
@@ -68,6 +101,8 @@ export default function MessagesPage() {
           setDoctors(docRes.doctors.map((d) => ({ id: d.id, firstName: d.firstName, lastName: d.lastName, doctorProfileId: d.id })));
         }
         await loadThreads();
+      } catch {
+        setThreads([]);
       } finally {
         setLoading(false);
       }
@@ -88,6 +123,11 @@ export default function MessagesPage() {
   const onReply = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     if (!selectedId || !replyBody.trim()) return;
+    const { isGuestSession } = await import("../../lib/guest-session");
+    if (isGuestSession()) {
+      showToast("Sign in to send messages to the clinic", "error");
+      return;
+    }
     setReplying(true);
     try {
       await apiRequest(`/messages/threads/${selectedId}/reply`, {
@@ -128,6 +168,11 @@ export default function MessagesPage() {
   const onCreateThread = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     if (!newSubject.trim() || !newBody.trim()) return;
+    const { isGuestSession } = await import("../../lib/guest-session");
+    if (isGuestSession()) {
+      showToast("Sign in to send messages to the clinic", "error");
+      return;
+    }
     setCreating(true);
     try {
       const res = await apiRequest<{ thread: MessageThread }>("/messages/threads", {

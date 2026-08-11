@@ -7,7 +7,7 @@ import { DashboardCard } from "../../../components/healthflow/DashboardCard";
 import { AppointmentStatusBadge } from "../../../components/healthflow/AppointmentStatusBadge";
 import { KpiCard } from "../../../components/ui/KpiCard";
 import { EmptyState } from "../../../components/ui/EmptyState";
-import { IconCalendar, IconChat, IconPlus, IconSearch } from "../../../components/ui/Icons";
+import { IconCalendar, IconChat, IconClipboard, IconPlus, IconSearch } from "../../../components/ui/Icons";
 import { apiRequest } from "../../../lib/api";
 import type { HealthFlowAppointment, MessageThread } from "../../../types/healthflow";
 
@@ -24,10 +24,20 @@ export default function PatientDashboardPage() {
   useEffect(() => {
     const load = async (): Promise<void> => {
       try {
+        const { isGuestSession } = await import("../../../lib/guest-session");
+        if (isGuestSession()) {
+          setAppointments([]);
+          setThreads([]);
+          return;
+        }
         const now = new Date().toISOString();
         const [apptRes, threadRes] = await Promise.all([
-          apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?from=${encodeURIComponent(now)}`),
-          apiRequest<{ threads: MessageThread[] }>("/messages/threads")
+          apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?from=${encodeURIComponent(now)}`).catch(() => ({
+            appointments: [] as HealthFlowAppointment[]
+          })),
+          apiRequest<{ threads: MessageThread[] }>("/messages/threads").catch(() => ({
+            threads: [] as MessageThread[]
+          }))
         ]);
         setAppointments(apptRes.appointments.slice(0, 5));
         setThreads(threadRes.threads.slice(0, 3));
@@ -94,21 +104,43 @@ export default function PatientDashboardPage() {
             </DashboardCard>
           </div>
 
-          <div className="mt-8">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Quick Actions</h2>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/messages" className="btn-secondary">
-                <IconPlus className="h-4 w-4" />
-                New Message
-              </Link>
-              <Link href="/calendar" className="btn-secondary">
-                <IconCalendar className="h-4 w-4" />
-                View Calendar
-              </Link>
-              <Link href="/resources" className="btn-secondary">
-                <IconSearch className="h-4 w-4" />
-                Find Resources
-              </Link>
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            <div className="card p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                  <IconClipboard className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Care Guide</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Not sure whether to message, book, or seek urgent care? Get next-step guidance, visit prep, and clinic answers.
+                  </p>
+                  <Link href="/patient/care-guide" className="btn-primary mt-4 inline-flex">
+                    Open Care Guide
+                  </Link>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Quick Actions</h2>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/patient/care-guide?tab=prep" className="btn-secondary">
+                  <IconClipboard className="h-4 w-4" />
+                  Visit prep
+                </Link>
+                <Link href="/messages" className="btn-secondary">
+                  <IconPlus className="h-4 w-4" />
+                  New Message
+                </Link>
+                <Link href="/calendar" className="btn-secondary">
+                  <IconCalendar className="h-4 w-4" />
+                  View Calendar
+                </Link>
+                <Link href="/resources" className="btn-secondary">
+                  <IconSearch className="h-4 w-4" />
+                  Find Resources
+                </Link>
+              </div>
             </div>
           </div>
         </>

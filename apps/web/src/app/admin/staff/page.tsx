@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "../../../lib/zod-resolver";
 import { z } from "zod";
 import { ApiError, apiRequest } from "../../../lib/api";
 import { useToast } from "../../../contexts/toast-context";
@@ -74,7 +75,13 @@ export default function AdminStaffPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Staff Management</h1>
-        <p className="mt-1 text-sm text-slate-500">Add and view clinic staff accounts</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Add staff directly or{" "}
+          <Link href="/admin/settings" className="font-medium text-brand-600 hover:text-brand-700">
+            generate secure invite codes
+          </Link>{" "}
+          in Settings.
+        </p>
       </div>
 
       <Card>

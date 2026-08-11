@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { computeReminderTime, isReminderDue } from "../reminder-engine";
+import { ReminderChannel, ReminderFrequency } from "@prisma/client";
+import { computeReminderTime, frequencyMatch, isReminderDue } from "../reminder-engine";
+
+const rule = {
+  id: "rule1",
+  organizationId: "org1",
+  name: "24h email",
+  offsetMinutes: 1440,
+  channel: ReminderChannel.EMAIL,
+  enabled: true,
+  createdAt: new Date()
+};
 
 describe("computeReminderTime", () => {
   it("subtracts offset minutes from scheduledAt", () => {
@@ -51,5 +62,31 @@ describe("isReminderDue", () => {
 
   it("returns true when now equals scheduledAt with zero offset", () => {
     expect(isReminderDue(scheduledAt, scheduledAt, 0)).toBe(true);
+  });
+});
+
+describe("frequencyMatch", () => {
+  const scheduledAt = new Date("2026-06-20T15:00:00.000Z");
+
+  it("DAY_BEFORE fires once when 24h rule is due", () => {
+    const now = new Date("2026-06-19T15:00:00.000Z");
+    expect(frequencyMatch(ReminderFrequency.DAY_BEFORE, now, scheduledAt, rule)).toEqual({
+      due: true,
+      occurrenceKey: "once"
+    });
+  });
+
+  it("EVERY_DAY uses a daily occurrence key", () => {
+    const now = new Date("2026-06-18T12:00:00.000Z");
+    const result = frequencyMatch(ReminderFrequency.EVERY_DAY, now, scheduledAt, rule);
+    expect(result.due).toBe(true);
+    expect(result.occurrenceKey).toBe("day:2026-06-18");
+  });
+
+  it("WEEKLY uses an ISO week occurrence key", () => {
+    const now = new Date("2026-06-10T12:00:00.000Z");
+    const result = frequencyMatch(ReminderFrequency.WEEKLY, now, scheduledAt, rule);
+    expect(result.due).toBe(true);
+    expect(result.occurrenceKey.startsWith("week:")).toBe(true);
   });
 });

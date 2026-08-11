@@ -1,16 +1,21 @@
 import { Router } from "express";
 import { reminderLogsQuerySchema } from "@technovate/shared";
 import { prisma } from "../lib/prisma";
+import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
+import { enrichAuth } from "../middleware/enrich-auth";
+import { canManageAppointments } from "../lib/permissions";
 
 export const reminderLogsRouter = Router();
 
-reminderLogsRouter.use(requireAuth);
+reminderLogsRouter.use(requireAuth, enrichAuth);
 
 reminderLogsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
+    if (!canManageAppointments(req.auth!)) throw new AppError("Forbidden", 403);
+
     const query = reminderLogsQuerySchema.parse(req.query);
 
     const logs = await prisma.reminderLog.findMany({

@@ -135,6 +135,28 @@ appointmentsRouter.put(
       if (body.status && !["CONFIRMED", "CANCELLED", "RESCHEDULE_REQUESTED"].includes(body.status)) {
         throw new AppError("Patients can only confirm, cancel, or request reschedule", 403);
       }
+      const appointment = await prisma.appointment.update({
+        where: { id },
+        data: {
+          ...(body.status ? { status: body.status } : {}),
+          ...(body.patientNotes !== undefined ? { patientNotes: body.patientNotes } : {})
+        },
+        include: { patient: true, doctor: true, profile: true }
+      });
+
+      await writeAuditLog({
+        organizationId: req.auth!.activeOrganizationId,
+        actorId: req.auth!.userId,
+        actorRole: req.auth!.role,
+        action: "APPOINTMENT_UPDATED",
+        targetType: "Appointment",
+        targetId: id,
+        ipAddress: req.ip,
+        metadata: { status: body.status }
+      });
+
+      res.json({ appointment });
+      return;
     } else if (!canManageAppointments(req.auth!)) {
       throw new AppError("Forbidden", 403);
     }

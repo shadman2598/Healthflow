@@ -8,6 +8,10 @@ apps/web/node_modules
 packages/shared/node_modules
 apps/api/dist
 packages/shared/dist
-apps/web/.next
 apps/web/tsconfig.tsbuildinfo
 *.log
+
+
+# Next.js build/cache outputs
+apps/web/.next
+apps/web/.next-*

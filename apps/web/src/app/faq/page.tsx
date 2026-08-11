@@ -5,6 +5,14 @@ import { IconChevronRight, IconShield } from "../../components/ui/Icons";
 
 const faqs = [
   {
+    q: "What is Care Guide?",
+    a: "Care Guide helps you decide next steps (message, book, urgent care), prepare for visits, and search clinic answers like fees and how-tos. It is not a diagnosis tool and not for emergencies."
+  },
+  {
+    q: "How much does a sick note cost?",
+    a: "A standard sick note / work or school absence note is $50 at this clinic. Other forms and uninsured services have different prices — open Fees & Resources to see the full list before you request one."
+  },
+  {
     q: "How do I view upcoming appointments?",
     a: "Sign in as a patient and open Dashboard, Calendar, or Appointment History. Upcoming visits show date, provider, purpose, and status."
   },

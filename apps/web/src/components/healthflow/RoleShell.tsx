@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
+import { clearGuestSession, getGuestUser, isGuestSession } from "../../lib/guest-session";
 import { normalizeRole, ROLE_NAV, type NavIconKey } from "../../lib/role-config";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../contexts/toast-context";
@@ -13,7 +14,9 @@ import {
   IconAlertTriangle,
   IconCalendar,
   IconChat,
+  IconClipboard,
   IconDashboard,
+  IconHelp,
   IconLogOut,
   IconSearch,
   IconSettings,
@@ -30,7 +33,8 @@ const iconMap: Record<NavIconKey, React.ComponentType<{ className?: string }>> =
   shield: IconShield,
   alert: IconAlertTriangle,
   settings: IconSettings,
-  help: IconShield
+  help: IconHelp,
+  clipboard: IconClipboard
 };
 
 type RoleShellProps = {
@@ -41,11 +45,18 @@ export function RoleShell({ children }: RoleShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { showToast } = useToast();
+  // Start null on server + client to avoid hydration mismatch (guest uses localStorage).
   const [user, setUser] = useState<HealthFlowUser | null>(null);
   const [clinics, setClinics] = useState<Organization[]>([]);
 
   useEffect(() => {
     const load = async (): Promise<void> => {
+      const guest = getGuestUser();
+      if (guest) {
+        setUser(guest);
+        setClinics([guest.organization]);
+        return;
+      }
       try {
         const [meRes, clinicsRes] = await Promise.all([
           apiRequest<{ user: HealthFlowUser }>("/auth/me"),
@@ -64,6 +75,11 @@ export function RoleShell({ children }: RoleShellProps) {
   }, [pathname]);
 
   const logout = async (): Promise<void> => {
+    if (isGuestSession()) {
+      clearGuestSession();
+      router.replace("/");
+      return;
+    }
     try {
       await apiRequest<{ ok: boolean }>("/auth/logout", { method: "POST" });
       router.replace("/login");
@@ -151,7 +167,9 @@ export function RoleShell({ children }: RoleShellProps) {
             <Avatar name={displayName} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-900">{displayName}</p>
-              <p className="text-xs text-slate-500">{user?.organization?.name ?? user?.role ?? ""}</p>
+              <p className="text-xs text-slate-500">
+                {isGuestSession() ? "Guest preview" : user?.organization?.name ?? user?.role ?? ""}
+              </p>
             </div>
             <button onClick={() => void logout()} className="btn-icon shrink-0" title="Sign out">
               <IconLogOut className="h-4 w-4" />
@@ -164,7 +182,11 @@ export function RoleShell({ children }: RoleShellProps) {
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-8">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-teal-600">HealthFlow</p>
-            <p className="text-sm text-slate-500">{user?.organization?.name ?? "Loading..."}</p>
+            <p className="text-sm text-slate-500">
+              {isGuestSession()
+                ? "Guest preview — browse features without an account"
+                : user?.organization?.name ?? "Loading..."}
+            </p>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-8">{children}</main>

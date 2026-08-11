@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
+import { getGuestUser, startGuestSession } from "../../lib/guest-session";
 import { roleDashboardPath } from "../../lib/role-config";
 import type { HealthFlowUser } from "../../types/healthflow";
 import { IconShield } from "../ui/Icons";
 import { cn } from "../../lib/utils";
+import { DemoAccessGuide } from "./DemoAccessGuide";
 
 type RoleOption = {
   id: "patient" | "doctor" | "receptionist";
@@ -51,17 +53,33 @@ const ROLES: RoleOption[] = [
 
 export function WhoAreYouPage() {
   const router = useRouter();
+  const [startingGuest, setStartingGuest] = useState(false);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("guest") === "1") {
+      startGuestSession();
+      router.replace("/patient/dashboard");
+      return;
+    }
+    const guest = getGuestUser();
+    if (guest) {
+      router.replace(guest.redirectTo ?? "/patient/dashboard");
+      return;
+    }
     apiRequest<{ user: HealthFlowUser }>("/auth/me")
       .then((res) => router.replace(res.user.redirectTo ?? roleDashboardPath(res.user.role)))
       .catch(() => {});
   }, [router]);
 
+  const continueAsGuest = (): void => {
+    setStartingGuest(true);
+    startGuestSession();
+    router.replace("/patient/dashboard");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-brand-50/20 to-teal-50/30">
       <div className="mx-auto flex min-h-screen max-w-4xl flex-col justify-center px-6 py-12">
-        {/* Header */}
         <div className="mb-12 text-center">
           <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-teal-600 shadow-md">
             <IconShield className="h-6 w-6 text-white" />
@@ -75,7 +93,20 @@ export function WhoAreYouPage() {
           </p>
         </div>
 
-        {/* Role bubbles */}
+        <div className="mb-8 flex justify-center">
+          <button
+            type="button"
+            onClick={continueAsGuest}
+            disabled={startingGuest}
+            className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+          >
+            {startingGuest ? "Opening preview..." : "Continue as guest"}
+          </button>
+        </div>
+        <p className="mb-10 text-center text-sm text-slate-500">
+          Browse the patient portal without signing in. Live clinic data appears after you create an account or sign in.
+        </p>
+
         <div className="grid gap-6 sm:grid-cols-3">
           {ROLES.map((role) => (
             <div
@@ -85,7 +116,6 @@ export function WhoAreYouPage() {
                 role.bubbleClass
               )}
             >
-              {/* Block letter label */}
               <span
                 className={cn(
                   "select-none text-3xl font-black uppercase leading-none tracking-tighter sm:text-4xl",
@@ -116,16 +146,18 @@ export function WhoAreYouPage() {
           ))}
         </div>
 
-        {/* Footer notes */}
-        <div className="mt-10 space-y-3 text-center">
+        <DemoAccessGuide />
+
+        <div className="mt-6 space-y-3 text-center">
           <p className="text-xs text-slate-400">
-            Staff sign up requires a clinic invite code. Patients can register directly.
+            Doctors and receptionists need a clinic invite code to register. Patients can sign up directly.
           </p>
           <p className="text-xs text-slate-400">
             Clinic administrator?{" "}
             <Link href="/login/admin" className="font-medium text-brand-600 hover:text-brand-700">
               Admin sign in
             </Link>
+            {" "}(no public sign-up)
           </p>
           <p className="text-xs text-slate-400">
             This app supports clinic workflow only — not diagnosis or emergency care.

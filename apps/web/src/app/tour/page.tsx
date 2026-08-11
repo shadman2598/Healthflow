@@ -2,18 +2,37 @@ import Link from "next/link";
 
 type TourLink = { href: string; title: string; description: string; badge?: string };
 
-const staffAfterLogin: TourLink[] = [
-  { href: "/dashboard", title: "Dashboard", description: "KPI cards, today’s appointments, timeline, alerts, activity feed." },
-  { href: "/appointments", title: "Appointments", description: "Table, filters, create/edit modal, status badges." },
-  { href: "/patients", title: "Patients", description: "Directory, search, add/edit modal, avatars." },
-  { href: "/messages", title: "Messages", description: "Clinic messaging placeholder (coming soon)." },
-  { href: "/settings/reminders", title: "Reminder rules", description: "Toggle rules, channel icons, offsets." }
+const entry: TourLink[] = [
+  { href: "/", title: "Who are you?", description: "Role picker, guest browse, demo credentials.", badge: "Start" },
+  { href: "/?guest=1", title: "Continue as guest", description: "Opens patient portal without an account.", badge: "Guest" },
+  { href: "/login/patient", title: "Patient sign in", description: "Demo: patient1@healthflow.demo" },
+  { href: "/login/doctor", title: "Doctor sign in", description: "Demo: doctor1@healthflow.demo" },
+  { href: "/login/receptionist", title: "Receptionist sign in", description: "Demo: receptionist1@healthflow.demo" },
+  { href: "/login/admin", title: "Admin sign in", description: "Demo: admin@healthflow.demo" }
 ];
 
 const patient: TourLink[] = [
-  { href: "/patient", title: "Patient home", description: "Upcoming card, quick actions, notifications (demo data)." },
-  { href: "/patient/appointments", title: "Patient appointments", description: "Upcoming vs past, confirm / reschedule / cancel (UI demo)." },
-  { href: "/patient/messages", title: "Patient messages", description: "Chat-style thread (demo data)." }
+  { href: "/patient/dashboard", title: "Patient dashboard", description: "KPIs, upcoming visits, Care Guide shortcut." },
+  { href: "/patient/care-guide", title: "Care Guide", description: "Next-step guide, visit prep, ask the clinic." },
+  { href: "/calendar", title: "Calendar", description: "Shared calendar views." },
+  { href: "/messages", title: "Messages", description: "Secure clinic messaging." },
+  { href: "/patient/appointments", title: "Appointment history", description: "Confirm, reschedule, cancel." },
+  { href: "/resources", title: "Fees & Resources", description: "Clinic fees + nearby map finder." },
+  { href: "/resources?tab=finder", title: "Nearby finder", description: "Postal-code resource search." },
+  { href: "/faq", title: "FAQ", description: "Common clinic questions." },
+  { href: "/patient/profile", title: "Profile", description: "Contact info and reminder preferences." }
+];
+
+const staff: TourLink[] = [
+  { href: "/receptionist/dashboard", title: "Receptionist dashboard", description: "Schedule and clinic ops overview." },
+  { href: "/doctor/dashboard", title: "Doctor dashboard", description: "Schedule and patient messages." },
+  { href: "/admin/dashboard", title: "Admin dashboard", description: "Clinic oversight." },
+  { href: "/patients", title: "Patients", description: "Patient directory (staff)." },
+  { href: "/reminders", title: "Reminders", description: "Appointment reminders (staff)." },
+  { href: "/overdue-checkups", title: "Overdue checkups", description: "Patients past yearly checkup." },
+  { href: "/admin/staff", title: "Staff", description: "Invite and manage staff." },
+  { href: "/admin/audit-logs", title: "Audit logs", description: "Security and access history." },
+  { href: "/admin/settings", title: "Admin settings", description: "Clinic configuration." }
 ];
 
 export default function TourPage() {
@@ -21,59 +40,40 @@ export default function TourPage() {
     <div className="min-h-screen bg-slate-50 px-4 py-10 sm:px-8">
       <div className="mx-auto max-w-3xl">
         <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">Technovate Reminders</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">HealthFlow</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-900">UI tour — all screens</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Use this page to open every designed surface. Staff areas need a session: sign in first, then open the links below
-            (they work in the same browser tab session).
+            Open each surface from here. Patient routes work with guest or patient login. Staff routes need the matching
+            staff account.
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">Web: localhost:3000</span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">API: localhost:4000</span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1">Web: http://127.0.0.1:3000</span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1">API: http://127.0.0.1:4000</span>
           </div>
         </div>
 
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">1. Staff sign-in</h2>
-          <TourCard
-            href="/login"
-            title="Login"
-            description="Split layout, branding panel, credentials form."
-            badge="Start here"
-          />
-          <p className="mt-2 text-xs text-slate-500">
-            Demo: <code className="rounded bg-slate-100 px-1">admin@clinic.test</code> /{" "}
-            <code className="rounded bg-slate-100 px-1">Admin123!</code>
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">2. Staff app (after login)</h2>
-          <div className="space-y-2">
-            {staffAfterLogin.map((item) => (
-              <TourCard key={item.href} {...item} />
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-slate-500">
-            For appointment detail &amp; reminder logs, open any row from Appointments → View, or go to{" "}
-            <code className="rounded bg-slate-100 px-1">/appointments/&lt;id&gt;</code>.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">3. Patient portal (demo UI)</h2>
-          <div className="space-y-2">
-            {patient.map((item) => (
-              <TourCard key={item.href} {...item} badge="No login" />
-            ))}
-          </div>
-        </section>
+        <TourSection title="1. Entry" items={entry} />
+        <TourSection title="2. Patient portal" items={patient} />
+        <TourSection title="3. Staff portals (after login)" items={staff} />
 
         <p className="text-center text-xs text-slate-400">
-          You can bookmark this page: <span className="font-mono text-slate-600">/tour</span>
+          Bookmark: <span className="font-mono text-slate-600">/tour</span>
         </p>
       </div>
     </div>
+  );
+}
+
+function TourSection({ title, items }: { title: string; items: TourLink[] }) {
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <TourCard key={item.href + item.title} {...item} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -81,21 +81,18 @@ function TourCard({ href, title, description, badge }: TourLink) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover"
+      className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-brand-300 hover:shadow-md"
     >
       <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-slate-900">{title}</span>
-          {badge ? (
-            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
-              {badge}
-            </span>
-          ) : null}
-        </div>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
-        <p className="mt-1 font-mono text-xs text-brand-600">{href}</p>
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        <p className="mt-1 font-mono text-[11px] text-slate-400">{href}</p>
       </div>
-      <span className="shrink-0 text-slate-300">→</span>
+      {badge ? (
+        <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+          {badge}
+        </span>
+      ) : null}
     </Link>
   );
 }

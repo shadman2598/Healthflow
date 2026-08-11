@@ -4,14 +4,18 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
+import { enrichAuth } from "../middleware/enrich-auth";
+import { canManagePatients } from "../lib/permissions";
 
 export const patientsRouter = Router();
 
-patientsRouter.use(requireAuth);
+patientsRouter.use(requireAuth, enrichAuth);
 
 patientsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
+    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+
     const patients = await prisma.patient.findMany({
       where: { organizationId: req.auth!.activeOrganizationId },
       orderBy: { createdAt: "desc" }
@@ -24,6 +28,8 @@ patientsRouter.get(
 patientsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
+    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+
     const body = createPatientSchema.parse(req.body);
 
     const patient = await prisma.patient.create({
@@ -39,6 +45,8 @@ patientsRouter.post(
 patientsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
+    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+
     const { id } = idParamSchema.parse(req.params);
 
     const patient = await prisma.patient.findFirst({
@@ -53,6 +61,8 @@ patientsRouter.get(
 patientsRouter.put(
   "/:id",
   asyncHandler(async (req, res) => {
+    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+
     const { id } = idParamSchema.parse(req.params);
     const data = updatePatientSchema.parse(req.body);
 
@@ -65,7 +75,6 @@ patientsRouter.put(
       where: { id },
       data
     });
-
     res.json({ patient });
   })
 );
@@ -73,6 +82,8 @@ patientsRouter.put(
 patientsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
+    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+
     const { id } = idParamSchema.parse(req.params);
 
     const existing = await prisma.patient.findFirst({
@@ -81,7 +92,6 @@ patientsRouter.delete(
     if (!existing) throw new AppError("Patient not found", 404);
 
     await prisma.patient.delete({ where: { id } });
-
     res.status(204).send();
   })
 );

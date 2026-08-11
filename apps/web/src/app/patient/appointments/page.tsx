@@ -32,9 +32,21 @@ export default function PatientAppointmentsPage() {
   };
 
   useEffect(() => {
-    load()
-      .catch(() => showToast("Failed to load appointments", "error"))
-      .finally(() => setLoading(false));
+    const run = async (): Promise<void> => {
+      try {
+        const { isGuestSession } = await import("../../../lib/guest-session");
+        if (isGuestSession()) {
+          setAppointments([]);
+          return;
+        }
+        await load();
+      } catch {
+        showToast("Failed to load appointments", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    void run();
   }, [showToast]);
 
   const upcoming = useMemo(

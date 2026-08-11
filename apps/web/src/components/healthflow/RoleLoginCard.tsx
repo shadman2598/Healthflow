@@ -8,6 +8,7 @@ import { roleDashboardPath } from "../../lib/role-config";
 import { useToast } from "../../contexts/toast-context";
 import type { HealthFlowRole, HealthFlowUser } from "../../types/healthflow";
 import { IconArrowLeft, IconShield } from "../ui/Icons";
+import { DemoCredentialsPanel } from "./DemoCredentialsPanel";
 
 type RoleLoginCardProps = {
   role: HealthFlowRole;
@@ -45,6 +46,11 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
         userRole === role ||
         (role === "ADMIN" && (userRole === "ADMIN" || userRole === "SUPER_ADMIN"));
       if (!roleMatches) {
+        try {
+          await apiRequest<{ ok: boolean }>("/auth/logout", { method: "POST" });
+        } catch {
+          /* still surface the role mismatch */
+        }
         showToast(`This account is registered as ${userRole.toLowerCase()}`, "error");
         return;
       }
@@ -57,6 +63,15 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
     }
   };
 
+  const signupLink =
+    role === "PATIENT"
+      ? "/signup/patient"
+      : role === "DOCTOR"
+        ? "/signup/doctor"
+        : role === "RECEPTIONIST"
+          ? "/signup/receptionist"
+          : null;
+
   return (
     <div className="flex min-h-screen">
       <div className="hidden w-1/2 items-center justify-center bg-gradient-to-br from-brand-600 to-teal-600 lg:flex">
@@ -67,10 +82,15 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
           <p className="text-sm font-medium uppercase tracking-wider text-teal-100">HealthFlow</p>
           <h1 className="mt-2 text-3xl font-bold leading-tight">{title}</h1>
           <p className="mt-4 text-base leading-relaxed text-blue-100">{subtitle}</p>
+          {role === "ADMIN" ? (
+            <p className="mt-6 text-sm leading-relaxed text-blue-100/90">
+              Administrator accounts are provisioned by your clinic. There is no public admin sign-up.
+            </p>
+          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-1 items-center justify-center px-6">
+      <div className="flex flex-1 items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm">
           <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700">
             <IconArrowLeft className="h-4 w-4" />
@@ -87,7 +107,16 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
           <h2 className="text-2xl font-semibold text-slate-900">Sign in</h2>
           <p className="mt-1.5 text-sm text-slate-500">{subtitle}</p>
 
-          <form className="mt-8 space-y-5" onSubmit={onSubmit}>
+          <DemoCredentialsPanel
+            role={role}
+            className="mt-6"
+            onUseDemo={(demoEmail, demoPassword) => {
+              setEmail(demoEmail);
+              setPassword(demoPassword);
+            }}
+          />
+
+          <form className="mt-6 space-y-5" onSubmit={onSubmit}>
             <div>
               <label className="label">Email address</label>
               <input
@@ -129,17 +158,25 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
                 Create an account
               </Link>
             </p>
-          ) : (
+          ) : role === "ADMIN" ? (
             <p className="mt-6 text-center text-sm text-slate-500">
-              Staff member?{" "}
-              <Link
-                href={role === "DOCTOR" ? "/signup/doctor" : "/signup/receptionist"}
-                className="font-medium text-brand-600 hover:text-brand-700"
-              >
+              Need staff access?{" "}
+              <Link href="/login/receptionist" className="font-medium text-brand-600 hover:text-brand-700">
+                Receptionist sign in
+              </Link>{" "}
+              or{" "}
+              <Link href="/login/doctor" className="font-medium text-brand-600 hover:text-brand-700">
+                Doctor sign in
+              </Link>
+            </p>
+          ) : signupLink ? (
+            <p className="mt-6 text-center text-sm text-slate-500">
+              New {role === "DOCTOR" ? "doctor" : "receptionist"}?{" "}
+              <Link href={signupLink} className="font-medium text-brand-600 hover:text-brand-700">
                 Register with invite code
               </Link>
             </p>
-          )}
+          ) : null}
 
           <p className="mt-8 text-center text-xs text-slate-400">
             Protected health information &middot; Privacy compliant

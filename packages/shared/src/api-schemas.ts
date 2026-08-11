@@ -51,7 +51,7 @@ export const staffSignupSchema = z.object({
 export const createStaffSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  role: userRoleSchema,
+  role: z.enum(["RECEPTIONIST", "DOCTOR", "ADMIN"]),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   organizationId: z.string().min(1).optional()
@@ -83,10 +83,19 @@ export const createPatientProfileSchema = z.object({
   isRegularPatient: z.boolean().optional(),
   reminderPrefEmail: z.boolean().optional(),
   reminderPrefSms: z.boolean().optional(),
-  reminderPrefApp: z.boolean().optional()
+  reminderPrefApp: z.boolean().optional(),
+  reminderFrequency: z.enum(["DAY_BEFORE", "WEEKLY", "EVERY_DAY"]).optional()
 });
 
 export const updatePatientProfileSchema = createPatientProfileSchema.partial();
+
+/** Patients may only update their own reminder channel + frequency preferences. */
+export const patientReminderPrefsSchema = z.object({
+  reminderPrefEmail: z.boolean().optional(),
+  reminderPrefSms: z.boolean().optional(),
+  reminderPrefApp: z.boolean().optional(),
+  reminderFrequency: z.enum(["DAY_BEFORE", "WEEKLY", "EVERY_DAY"]).optional()
+});
 
 export const updatePatientSchema = createPatientSchema.partial();
 

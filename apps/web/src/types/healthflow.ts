@@ -105,11 +105,19 @@ export type Message = {
 };
 
 export type ResourceResult = {
+  id?: string;
   name: string;
   address: string;
   phone: string;
   distance: string;
+  distanceKm?: number;
+  driveKm?: number;
+  driveMinutes?: number;
   website: string;
+  lat?: number;
+  lon?: number;
+  mapsUrl?: string;
+  directionsUrl?: string;
 };
 
 export type OverdueCheckup = {
