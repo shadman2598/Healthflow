@@ -79,6 +79,10 @@ function ResourcesContent() {
   }, [searchParams]);
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_GITHUB_PAGES === "true") {
+      setCategories([...RESOURCE_CATEGORIES]);
+      return;
+    }
     fetch("/api/resources/categories")
       .then((res) => res.json())
       .then((data: { categories?: string[] }) => {
@@ -103,15 +107,24 @@ function ResourcesContent() {
 
   const onSubmit = async (data: SearchForm): Promise<void> => {
     try {
-      const response = await fetch("/api/resources/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-      });
-      const payload = (await response.json()) as SearchResponse;
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Search failed");
+      let payload: SearchResponse;
+
+      if (process.env.NEXT_PUBLIC_GITHUB_PAGES === "true") {
+        // Static GitHub Pages has no Next API routes — search from the browser.
+        const { searchNearbyResources } = await import("../../lib/nearby-resources");
+        payload = await searchNearbyResources(data.postalCode, data.category);
+      } else {
+        const response = await fetch("/api/resources/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+        payload = (await response.json()) as SearchResponse;
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Search failed");
+        }
       }
+
       setResults(payload.results ?? []);
       setOrigin(payload.origin ?? null);
       setDisclaimer(payload.disclaimer ?? "");

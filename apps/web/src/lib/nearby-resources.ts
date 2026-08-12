@@ -261,6 +261,48 @@ async function geocodePostalCode(postalCode: string): Promise<GeoPoint> {
   const normalized = normalizePostalCode(postalCode);
   const compact = normalized.replace(/\s+/g, "");
 
+  // Browser / GitHub Pages: Nominatim blocks CORS — use Photon (Komoot) instead.
+  if (typeof window !== "undefined") {
+    try {
+      const photonUrl =
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(`${normalized}, Canada`)}` +
+        `&limit=3&lang=en`;
+      const response = await fetch(photonUrl, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (response.ok) {
+        const data = (await response.json()) as {
+          features?: Array<{
+            geometry?: { coordinates?: [number, number] };
+            properties?: { name?: string; countrycode?: string; postcode?: string; city?: string; state?: string };
+          }>;
+        };
+        const features = data.features ?? [];
+        const ranked = [...features].sort((a, b) => {
+          const aPc = (a.properties?.postcode ?? "").replace(/\s+/g, "").toUpperCase();
+          const bPc = (b.properties?.postcode ?? "").replace(/\s+/g, "").toUpperCase();
+          const aHit = aPc === compact || aPc.startsWith(compact.slice(0, 3)) ? 1 : 0;
+          const bHit = bPc === compact || bPc.startsWith(compact.slice(0, 3)) ? 1 : 0;
+          return bHit - aHit;
+        });
+        const hit = ranked.find((f) => f.geometry?.coordinates?.length === 2);
+        if (hit?.geometry?.coordinates) {
+          const [lon, lat] = hit.geometry.coordinates;
+          const props = hit.properties ?? {};
+          if (!props.countrycode || props.countrycode.toUpperCase() === "CA") {
+            const label = [props.name, props.city, props.state, props.postcode, "Canada"]
+              .filter(Boolean)
+              .join(", ");
+            return { lat, lon, label: label || normalized };
+          }
+        }
+      }
+    } catch {
+      // fall through to Nominatim (works in Node / Next route handlers)
+    }
+  }
+
   const attempts = [
     `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(normalized)}&countrycodes=ca&format=json&addressdetails=1&limit=3`,
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${normalized}, Canada`)}&countrycodes=ca&format=json&addressdetails=1&limit=3`,

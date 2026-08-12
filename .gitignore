@@ -15,3 +15,5 @@ apps/web/tsconfig.tsbuildinfo
 # Next.js build/cache outputs
 apps/web/.next
 apps/web/.next-*
+apps/web/out
+.ci-tmp
