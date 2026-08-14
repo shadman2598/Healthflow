@@ -159,6 +159,21 @@ messagesRouter.post(
       }
     });
 
+    // Clinician → patient: consider a notification only when action/read is useful (Prompt 39).
+    if (req.auth!.role !== "PATIENT" && !body.isInternal) {
+      const { considerNotification } = await import("../lib/notification-intelligence");
+      await considerNotification({
+        organizationId: req.auth!.activeOrganizationId,
+        profileId: thread.patientProfileId,
+        kind: "clinician_message",
+        triggerEvent: "clinician_reply",
+        requiresAction: true,
+        sourceType: "MessageThread",
+        sourceId: thread.id,
+        messageSubject: thread.subject
+      });
+    }
+
     await writeAuditLog({
       organizationId: req.auth!.activeOrganizationId,
       actorId: req.auth!.userId,

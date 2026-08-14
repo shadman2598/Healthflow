@@ -13,6 +13,8 @@ enum UserRole {
   PATIENT
   RECEPTIONIST
   DOCTOR
+  NURSE
+  BILLING
   ADMIN
   SUPER_ADMIN
 }
@@ -61,6 +63,49 @@ enum ReminderLogStatus {
   FAILED
 }
 
+enum NotificationEventStatus {
+  SUPPRESSED
+  QUEUED
+  DELIVERED
+  FAILED
+  OPENED
+  ACTED
+  IGNORED
+  DISMISSED
+}
+
+enum NotificationKind {
+  APPOINTMENT_REMINDER
+  INTAKE_REMINDER
+  MEDICATION_REMINDER
+  RESULT_NOTIFICATION
+  FOLLOW_UP_REMINDER
+  ADMINISTRATIVE_REQUEST
+  CLINICIAN_MESSAGE
+}
+
+enum NotificationUrgency {
+  CRITICAL
+  HIGH
+  NORMAL
+  LOW
+}
+
+enum AiArtifactStatus {
+  DRAFT
+  PENDING_REVIEW
+  REVIEWED
+  REJECTED
+  BLOCKED
+  FAILED
+}
+
+enum AiRiskTier {
+  LOW_RISK_ADMINISTRATIVE
+  CLINICAL_ASSISTANCE
+  HIGH_RISK_CLINICAL
+}
+
 enum MessageThreadStatus {
   UNREAD
   READ
@@ -80,6 +125,7 @@ enum AuditAction {
   PATIENT_VIEWED
   PATIENT_CREATED
   PATIENT_UPDATED
+  PATIENT_DELETED
   APPOINTMENT_CREATED
   APPOINTMENT_UPDATED
   APPOINTMENT_DELETED
@@ -88,10 +134,25 @@ enum AuditAction {
   REMINDER_CREATED
   REMINDER_SENT
   ROLE_CHANGED
+  PERMISSION_CHANGED
   HEALTHCARE_NUMBER_REVEALED
   STAFF_INVITE_USED
+  STAFF_INVITE_CREATED
+  STAFF_CREATED
   DATA_EXPORTED
+  DATA_SHARED
   ANALYTICS_EVENT
+  AI_GENERATED
+  AI_REVIEWED
+  AI_BLOCKED
+  AI_FAILED
+  NEXT_ACTION_DISMISSED
+  NEXT_ACTION_RESTORED
+  NEXT_ACTION_COMPLETED
+  CLINICAL_ORDER_ATTEMPTED
+  PRESCRIPTION_BLOCKED
+  ADMIN_ACTION
+  SCHEDULE_UPDATED
 }
 
 // Legacy reminder rules engine
@@ -156,6 +217,13 @@ model Organization {
   reminders      Reminder[]
   auditLogs      AuditLog[]
   roleInvites    RoleInvite[]
+  providerAvailabilities ProviderAvailability[]
+  scheduleBlocks ScheduleBlock[]
+  waitlistEntries WaitlistEntry[]
+  bookingIdempotencies BookingIdempotency[]
+  notificationEvents NotificationEvent[]
+  aiArtifacts        AiArtifact[]
+  nextActionOverrides NextActionOverride[]
 
   @@unique([name])
   @@map("Clinic")
@@ -209,6 +277,11 @@ model PatientProfile {
   /// Quiet hours (local clinic clock, 0–23). Null = no quiet hours.
   quietHoursStart   Int?
   quietHoursEnd     Int?
+  /// Hard opt-out of non-critical notifications.
+  notificationsOptOut Boolean @default(false)
+  /// Prefer only notifications that require a patient action.
+  notificationsActionOnly Boolean @default(false)
+  notificationLocale String @default("en-CA")
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -219,6 +292,8 @@ model PatientProfile {
   appointments Appointment[]
   messageThreads MessageThread[]
   reminders      Reminder[]
+  waitlistEntries WaitlistEntry[]
+  notificationEvents NotificationEvent[]
 
   @@unique([organizationId, healthcareNumber])
   @@unique([organizationId, email])
@@ -240,6 +315,9 @@ model DoctorProfile {
   assignedPatients  PatientProfile[]
   appointments      Appointment[]    @relation("AppointmentDoctor")
   assignedThreads   MessageThread[]  @relation("ThreadAssignedDoctor")
+  availabilities    ProviderAvailability[]
+  scheduleBlocks    ScheduleBlock[]
+  waitlistEntries   WaitlistEntry[]
 
   @@index([organizationId])
 }
@@ -286,6 +364,12 @@ model Appointment {
   scheduledAt     DateTime
   /// Planned duration for conflict detection (default 30 minutes).
   durationMinutes Int                 @default(30)
+  bufferBeforeMinutes Int             @default(0)
+  bufferAfterMinutes  Int             @default(0)
+  location        String              @default("main")
+  allowDoubleBook Boolean             @default(false)
+  /// External scheduler correlation id (Epic/Cerner/etc.).
+  externalSyncId  String?
   reason          String?
   patientNotes    String?
   staffNotes      String?
@@ -306,8 +390,195 @@ model Appointment {
   @@index([organizationId, scheduledAt])
   @@index([patientId, scheduledAt])
   @@index([profileId])
-  @@index([doctorId])
+  @@index([doctorId, scheduledAt])
   @@index([status])
+  @@index([externalSyncId])
+}
+
+/// Recurring weekly provider availability (clinic-local clock).
+model ProviderAvailability {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  doctorId            String
+  dayOfWeek           Int
+  startMinute         Int
+  endMinute           Int
+  location            String   @default("main")
+  bufferBeforeMinutes Int      @default(0)
+  bufferAfterMinutes  Int      @default(5)
+  allowDoubleBook     Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  doctor       DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, doctorId])
+  @@index([doctorId, dayOfWeek])
+}
+
+/// One-off blocked times (PTO, meetings, room closure).
+model ScheduleBlock {
+  id             String   @id @default(cuid())
+  organizationId String
+  doctorId       String?
+  startsAt       DateTime
+  endsAt         DateTime
+  location       String?
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  doctor       DoctorProfile? @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startsAt])
+  @@index([doctorId, startsAt])
+}
+
+enum WaitlistStatus {
+  OPEN
+  OFFERED
+  BOOKED
+  CANCELLED
+  EXPIRED
+}
+
+model WaitlistEntry {
+  id             String             @id @default(cuid())
+  organizationId String
+  profileId      String
+  doctorId       String?
+  category       AppointmentCategory?
+  preferredFrom  DateTime
+  preferredTo    DateTime
+  notes          String?
+  status         WaitlistStatus     @default(OPEN)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile      PatientProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  doctor       DoctorProfile? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([doctorId, status])
+  @@index([profileId])
+}
+
+/// Idempotent booking keys — prevent double-submit race creating two appointments.
+model BookingIdempotency {
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String
+  requestHash    String
+  appointmentId  String?
+  responseJson   Json?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([expiresAt])
+}
+
+/// Intelligent notifications — usefulness over volume (Prompt 39).
+model NotificationEvent {
+  id                   String                  @id @default(cuid())
+  organizationId       String
+  profileId            String?
+  kind                 NotificationKind
+  urgency              NotificationUrgency     @default(NORMAL)
+  requiresAction       Boolean                 @default(true)
+  channel              ReminderChannel
+  locale               String                  @default("en-CA")
+  title                String
+  body                 String
+  actionHref           String?
+  actionLabel          String?
+  status               NotificationEventStatus @default(QUEUED)
+  suppressReason       String?
+  sourceType           String?
+  sourceId             String?
+  retryCount           Int                     @default(0)
+  maxRetries           Int                     @default(2)
+  escalateAfterMinutes Int?
+  parentEventId        String?
+  deliveredAt          DateTime?
+  openedAt             DateTime?
+  actedAt              DateTime?
+  ignoredAt            DateTime?
+  dismissedAt          DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile      PatientProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([profileId, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([status, deliveredAt])
+}
+
+/// AI safety artifacts — drafts only until human review (Prompt 40).
+model AiArtifact {
+  id                   String           @id @default(cuid())
+  organizationId       String
+  capabilityId         String
+  tier                 AiRiskTier
+  status               AiArtifactStatus @default(DRAFT)
+  title                String
+  content              String
+  sourcesJson          Json
+  confidence           Float?
+  uncertaintyNote      String?
+  modelId              String
+  promptVersion        String
+  artifactVersion      Int              @default(1)
+  humanReviewRequired  Boolean          @default(true)
+  reviewedByUserId     String?
+  reviewedAt           DateTime?
+  reviewNotes          String?
+  phiRedacted          Boolean          @default(true)
+  inputHash            String?
+  failureCode          String?
+  failureMessage       String?
+  disclaimer           String
+  createdByUserId      String
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, capabilityId])
+  @@index([createdByUserId])
+}
+
+enum NextActionOverrideStatus {
+  DISMISSED
+  ACCEPTED
+  COMPLETED
+}
+
+/// Reversible NEXT_ACTION decisions — engine recomputes; overrides are auditable (Prompt 41).
+model NextActionOverride {
+  id             String                   @id @default(cuid())
+  organizationId String
+  userId         String
+  auditKey       String
+  status         NextActionOverrideStatus
+  reason         String?
+  snapshotJson   Json?
+  createdAt      DateTime                 @default(now())
+  reversedAt     DateTime?
+  reversedByUserId String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, auditKey])
+  @@index([organizationId, userId, status])
 }
 
 model MessageThread {
@@ -375,8 +646,11 @@ model AuditLog {
   action         AuditAction
   targetType     String?
   targetId       String?
+  /// Origin of the write: api route, worker, system, interop, etc.
+  source         String      @default("api")
   ipAddress      String?
   metadata       Json?
+  /// Immutable creation time — never updated by application APIs.
   createdAt      DateTime    @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -385,6 +659,7 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([actorId])
   @@index([action])
+  @@index([organizationId, action, createdAt])
 }
 
 model RoleInvite {

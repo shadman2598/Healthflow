@@ -1,4 +1,11 @@
-export type HealthFlowRole = "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN" | "SUPER_ADMIN";
+export type HealthFlowRole =
+  | "PATIENT"
+  | "RECEPTIONIST"
+  | "DOCTOR"
+  | "NURSE"
+  | "BILLING"
+  | "ADMIN"
+  | "SUPER_ADMIN";
 
 export type Organization = {
   id: string;
@@ -134,9 +141,16 @@ export type OverdueCheckup = {
 export type AuditLog = {
   id: string;
   action: string;
-  entityType: string;
-  entityId: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  organizationId?: string;
+  actorRole?: string | null;
+  source?: string;
+  category?: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+  timestamp?: string;
   actor?: { id: string; email: string; role: HealthFlowRole };
 };

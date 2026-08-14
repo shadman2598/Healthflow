@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { resolvePatientNextStep, type JourneyAppointment } from "@technovate/shared";
+import {
+  confirmVisitHref,
+  isDayOfArrivalWindow,
+  prepVisitHref,
+  resolvePatientNextStep,
+  type JourneyAppointment
+} from "@technovate/shared";
 
 const future = (hoursFromNow: number): string =>
   new Date(Date.now() + hoursFromNow * 3600_000).toISOString();
@@ -7,7 +13,9 @@ const future = (hoursFromNow: number): string =>
 const past = (daysAgo: number): string =>
   new Date(Date.now() - daysAgo * 24 * 3600_000).toISOString();
 
-function appt(partial: Partial<JourneyAppointment> & Pick<JourneyAppointment, "id" | "status">): JourneyAppointment {
+function appt(
+  partial: Partial<JourneyAppointment> & Pick<JourneyAppointment, "id" | "status">
+): JourneyAppointment {
   return {
     scheduledAt: future(48),
     reason: "Checkup",
@@ -21,15 +29,18 @@ describe("resolvePatientNextStep", () => {
     const step = resolvePatientNextStep({ isGuest: true, appointments: [], threads: [] });
     expect(step.id).toBe("guest_sign_in");
     expect(step.primary.href).toBe("/login/patient");
+    expect(step.phases.some((p) => p.id === "register" && p.state === "current")).toBe(true);
   });
 
-  it("prioritizes confirming SCHEDULED visits", () => {
+  it("prioritizes confirming SCHEDULED visits with deep link", () => {
     const step = resolvePatientNextStep({
       isGuest: false,
       appointments: [appt({ id: "a1", status: "SCHEDULED" })],
       threads: [{ id: "t1", status: "PENDING" }]
     });
     expect(step.id).toBe("confirm_visit");
+    expect(step.primary.href).toBe(confirmVisitHref("a1"));
+    expect(step.secondary?.length).toBeLessThanOrEqual(2);
   });
 
   it("routes CONFIRMED visits to prep", () => {
@@ -39,7 +50,44 @@ describe("resolvePatientNextStep", () => {
       threads: []
     });
     expect(step.id).toBe("prep_visit");
-    expect(step.primary.href).toContain("care-guide?tab=prep");
+    expect(step.primary.href).toBe(prepVisitHref("a1"));
+  });
+
+  it("shifts prep CTA when checklist is mostly done", () => {
+    const step = resolvePatientNextStep({
+      isGuest: false,
+      appointments: [appt({ id: "a1", status: "CONFIRMED" })],
+      threads: [],
+      prepProgress: 0.9
+    });
+    expect(step.id).toBe("prep_visit");
+    expect(step.primary.href).toBe("/patient/reminders");
+  });
+
+  it("shows day-of arrive guidance in arrival window", () => {
+    const step = resolvePatientNextStep({
+      isGuest: false,
+      appointments: [appt({ id: "a1", status: "CONFIRMED", scheduledAt: future(1) })],
+      threads: []
+    });
+    expect(step.id).toBe("day_of_arrive");
+    expect(step.phases.some((p) => p.id === "arrive" && p.state === "current")).toBe(true);
+  });
+
+  it("shows checked-in waiting state", () => {
+    const step = resolvePatientNextStep({
+      isGuest: false,
+      appointments: [
+        appt({
+          id: "a1",
+          status: "CONFIRMED",
+          scheduledAt: future(0.5),
+          checkedInAt: new Date().toISOString()
+        })
+      ],
+      threads: []
+    });
+    expect(step.id).toBe("checked_in");
   });
 
   it("shows awaiting state for reschedule requests", () => {
@@ -77,5 +125,18 @@ describe("resolvePatientNextStep", () => {
       threads: []
     });
     expect(step.id).toBe("follow_up");
+  });
+});
+
+describe("journey helpers", () => {
+  it("detects day-of window", () => {
+    expect(isDayOfArrivalWindow(future(1))).toBe(true);
+    expect(isDayOfArrivalWindow(future(48))).toBe(false);
+  });
+
+  it("builds confirm and prep hrefs", () => {
+    expect(confirmVisitHref("abc")).toContain("action=confirm");
+    expect(confirmVisitHref("abc")).toContain("id=abc");
+    expect(prepVisitHref("abc")).toContain("appointmentId=abc");
   });
 });

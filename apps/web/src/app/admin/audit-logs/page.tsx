@@ -26,7 +26,9 @@ export default function AuditLogsPage() {
     <ProtectedRolePage allowedRoles={["ADMIN", "SUPER_ADMIN"]} requiredPermissions={["audit:read"]}>
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-900">Audit Logs</h1>
-        <p className="mt-1 text-sm text-slate-500">Compliance and activity trail for your clinic</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Immutable compliance trail — records cannot be edited or deleted through the app.
+        </p>
       </div>
 
       <div className="card overflow-hidden">
@@ -43,8 +45,9 @@ export default function AuditLogsPage() {
                 <tr>
                   <th className="px-6 py-3 font-medium text-slate-600">Time</th>
                   <th className="px-6 py-3 font-medium text-slate-600">Action</th>
-                  <th className="px-6 py-3 font-medium text-slate-600">Entity</th>
-                  <th className="px-6 py-3 font-medium text-slate-600">Actor</th>
+                  <th className="px-6 py-3 font-medium text-slate-600">Resource</th>
+                  <th className="px-6 py-3 font-medium text-slate-600">Actor / role</th>
+                  <th className="px-6 py-3 font-medium text-slate-600">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -53,9 +56,27 @@ export default function AuditLogsPage() {
                     <td className="whitespace-nowrap px-6 py-3.5 text-slate-500">{relativeTime(log.createdAt)}</td>
                     <td className="px-6 py-3.5">
                       <StatusBadge variant="info">{log.action}</StatusBadge>
+                      {log.category ? (
+                        <span className="mt-1 block text-[10px] uppercase tracking-wide text-slate-400">
+                          {log.category}
+                        </span>
+                      ) : null}
                     </td>
-                    <td className="px-6 py-3.5 text-slate-700">{log.entityType}</td>
-                    <td className="px-6 py-3.5 text-slate-600">{log.actor?.email ?? "—"}</td>
+                    <td className="px-6 py-3.5 text-slate-700">
+                      {log.targetType ?? log.entityType ?? "—"}
+                      {(log.targetId ?? log.entityId) ? (
+                        <span className="mt-0.5 block font-mono text-[10px] text-slate-400">
+                          {(log.targetId ?? log.entityId) as string}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-6 py-3.5 text-slate-600">
+                      {log.actor?.email ?? "—"}
+                      <span className="mt-0.5 block text-[10px] text-slate-400">
+                        {log.actorRole ?? log.actor?.role ?? ""}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3.5 font-mono text-[11px] text-slate-500">{log.source ?? "api"}</td>
                   </tr>
                 ))}
               </tbody>

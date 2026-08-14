@@ -5,8 +5,13 @@ import {
   ReminderLogStatus,
   type ReminderRule
 } from "@prisma/client";
+import {
+  considerNotification,
+  markSourceNotificationsDelivered,
+  markSourceNotificationsFailed,
+  prefsFromProfile
+} from "../lib/notification-intelligence";
 import { prisma } from "../lib/prisma";
-import { isInsideQuietHours } from "../lib/scheduling";
 import { reminderQueue } from "./queue";
 
 export function computeReminderTime(scheduledAt: Date, offsetMinutes: number): Date {
@@ -185,18 +190,34 @@ export async function scanAndEnqueueDueReminders(now = new Date()): Promise<numb
         ? orgRules
         : pickPrimaryRulesPerChannel(orgRules);
 
+    const dueRules: { rule: ReminderRule; occurrenceKey: string }[] = [];
     for (const rule of rulesToConsider) {
       if (!channelAllowed(rule.channel, prefs)) continue;
-      if (
-        prefs &&
-        isInsideQuietHours(now, prefs.quietHoursStart, prefs.quietHoursEnd)
-      ) {
-        continue;
-      }
-
       const { due, occurrenceKey } = frequencyMatch(frequency, now, appointment.scheduledAt, rule);
-      if (!due) continue;
+      if (due) dueRules.push({ rule, occurrenceKey });
+    }
+    if (dueRules.length === 0) continue;
 
+    // Prompt 39: usefulness gate — do not notify merely because a rule matched.
+    const intel = await considerNotification({
+      organizationId: appointment.organizationId,
+      profileId: prefs?.id,
+      kind: "appointment_reminder",
+      triggerEvent: "appointment_upcoming",
+      requiresAction: appointment.status === AppointmentStatus.SCHEDULED,
+      actionableAt: appointment.scheduledAt,
+      sourceType: "Appointment",
+      sourceId: appointment.id,
+      visitWhen: appointment.scheduledAt.toLocaleString("en-CA", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }),
+      prefs: prefsFromProfile(prefs),
+      now
+    });
+    if (!intel.decision.send) continue;
+
+    for (const { rule, occurrenceKey } of dueRules) {
       const logId = await ensurePendingLog(
         appointment.organizationId,
         appointment.id,
@@ -287,6 +308,7 @@ export async function processReminderLog(reminderLogId: string): Promise<void> {
           error: null
         }
       });
+      await markSourceNotificationsDelivered("Appointment", log.appointmentId);
       return;
     }
 
@@ -305,6 +327,7 @@ export async function processReminderLog(reminderLogId: string): Promise<void> {
           error: null
         }
       });
+      await markSourceNotificationsDelivered("Appointment", log.appointmentId);
       return;
     }
 
@@ -313,13 +336,16 @@ export async function processReminderLog(reminderLogId: string): Promise<void> {
       where: { id: log.id },
       data: { status: ReminderLogStatus.SENT, sentAt: new Date(), error: null }
     });
+    await markSourceNotificationsDelivered("Appointment", log.appointmentId);
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown send error";
     await prisma.reminderLog.update({
       where: { id: log.id },
       data: {
         status: ReminderLogStatus.FAILED,
-        error: error instanceof Error ? error.message : "Unknown send error"
+        error: message
       }
     });
+    await markSourceNotificationsFailed("Appointment", log.appointmentId, message);
   }
 }

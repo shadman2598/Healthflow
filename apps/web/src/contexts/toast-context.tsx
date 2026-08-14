@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { IconCheckCircle, IconXCircle } from "../components/ui/Icons";
+import { IconCheckCircle, IconX, IconXCircle } from "../components/ui/Icons";
 
 type ToastType = "success" | "error";
 
@@ -37,24 +37,36 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-3">
+      <div
+        className="fixed bottom-6 right-6 z-50 flex max-w-sm flex-col-reverse gap-3"
+        aria-live="assertive"
+        aria-relevant="additions text"
+        aria-atomic="false"
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            role="alert"
-            onClick={() => dismiss(toast.id)}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm transition-all ${
+            role={toast.type === "error" ? "alert" : "status"}
+            className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm ${
               toast.type === "success"
-                ? "border-emerald-200 bg-white text-emerald-800"
-                : "border-red-200 bg-white text-red-800"
+                ? "border-emerald-200 bg-white text-emerald-900"
+                : "border-red-200 bg-white text-red-900"
             }`}
           >
             {toast.type === "success" ? (
-              <IconCheckCircle className="h-5 w-5 shrink-0 text-emerald-500" />
+              <IconCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
             ) : (
-              <IconXCircle className="h-5 w-5 shrink-0 text-red-500" />
+              <IconXCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden />
             )}
-            <p className="text-sm font-medium">{toast.message}</p>
+            <p className="flex-1 text-sm font-medium">{toast.message}</p>
+            <button
+              type="button"
+              className="btn-icon -mr-1 -mt-1 shrink-0"
+              aria-label="Dismiss notification"
+              onClick={() => dismiss(toast.id)}
+            >
+              <IconX className="h-4 w-4" aria-hidden />
+            </button>
           </div>
         ))}
       </div>

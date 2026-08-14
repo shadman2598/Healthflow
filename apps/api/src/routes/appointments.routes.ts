@@ -3,6 +3,7 @@ import {
   appointmentsQuerySchema,
   createAppointmentSchema,
   idParamSchema,
+  toScheduleSyncRecord,
   updateAppointmentSchema
 } from "@technovate/shared";
 import { prisma } from "../lib/prisma";
@@ -13,6 +14,8 @@ import { enrichAuth } from "../middleware/enrich-auth";
 import { canManageAppointments } from "../lib/permissions";
 import { assertDoctorOwnsAppointment } from "../lib/patient-access";
 import { findScheduleConflicts } from "../lib/scheduling";
+import { bookAppointmentTransactional } from "../lib/scheduling-engine";
+import { mergeAppointmentNarratives } from "../lib/data-propagation";
 import { writeAuditLog } from "../lib/audit";
 import { sanitizeText } from "../lib/sanitize";
 
@@ -72,54 +75,56 @@ appointmentsRouter.post(
       }
     }
 
-    const patient = await prisma.patient.findFirst({
-      where: { id: body.patientId, organizationId: req.auth!.activeOrganizationId }
-    });
-    if (!patient) throw new AppError("Patient not found", 404);
-
-    const scheduledAt = new Date(body.scheduledAt);
-    const durationMinutes = body.durationMinutes ?? 30;
-    const conflicts = await findScheduleConflicts({
+    const idemHeader = req.header("Idempotency-Key") ?? body.idempotencyKey;
+    const { appointment, idempotentReplay } = await bookAppointmentTransactional({
       organizationId: req.auth!.activeOrganizationId,
+      patientId: body.patientId,
+      profileId: body.profileId,
       doctorId: body.doctorId,
-      scheduledAt,
-      durationMinutes
+      scheduledAt: new Date(body.scheduledAt),
+      category: body.category,
+      durationMinutes: body.durationMinutes,
+      bufferBeforeMinutes: body.bufferBeforeMinutes,
+      bufferAfterMinutes: body.bufferAfterMinutes,
+      location: body.location,
+      allowDoubleBook: body.allowDoubleBook,
+      reason: body.reason,
+      patientNotes: body.patientNotes,
+      staffNotes: body.staffNotes,
+      externalSyncId: body.externalSyncId,
+      idempotencyKey: idemHeader,
+      actorId: req.auth!.userId,
+      bypassAvailability: body.bypassAvailability ?? true
     });
-    if (conflicts.length > 0) {
-      throw new AppError(
-        "Scheduling conflict: that clinician already has an overlapping appointment",
-        409
-      );
+
+    if (!idempotentReplay) {
+      await writeAuditLog({
+        organizationId: req.auth!.activeOrganizationId,
+        actorId: req.auth!.userId,
+        actorRole: req.auth!.role,
+        action: "APPOINTMENT_CREATED",
+        targetType: "Appointment",
+        targetId: appointment.id,
+        ipAddress: req.ip,
+        metadata: {
+          scheduledAt: appointment.scheduledAt,
+          doctorId: appointment.doctorId,
+          category: appointment.category,
+          location: appointment.location
+        }
+      });
     }
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        organizationId: req.auth!.activeOrganizationId,
-        patientId: body.patientId,
-        profileId: body.profileId ?? patient.profileId,
-        doctorId: body.doctorId,
-        scheduledAt,
-        durationMinutes,
-        reason: body.reason ? sanitizeText(body.reason, 500) : undefined,
-        patientNotes: body.patientNotes ? sanitizeText(body.patientNotes) : undefined,
-        staffNotes: body.staffNotes ? sanitizeText(body.staffNotes) : undefined,
-        category: body.category,
-        status: body.status
-      },
-      include: { patient: true, doctor: true, profile: true }
+    res.status(idempotentReplay ? 200 : 201).json({
+      appointment,
+      sync: toScheduleSyncRecord("Appointment", appointment.id, appointment.updatedAt, {
+        doctorId: appointment.doctorId,
+        scheduledAt: appointment.scheduledAt.toISOString(),
+        status: appointment.status,
+        externalSyncId: appointment.externalSyncId
+      }),
+      idempotentReplay
     });
-
-    await writeAuditLog({
-      organizationId: req.auth!.activeOrganizationId,
-      actorId: req.auth!.userId,
-      actorRole: req.auth!.role,
-      action: "APPOINTMENT_CREATED",
-      targetType: "Appointment",
-      targetId: appointment.id,
-      ipAddress: req.ip
-    });
-
-    res.status(201).json({ appointment });
   })
 );
 
@@ -160,11 +165,23 @@ appointmentsRouter.put(
       if (body.status && !["CONFIRMED", "CANCELLED", "RESCHEDULE_REQUESTED"].includes(body.status)) {
         throw new AppError("Patients can only confirm, cancel, or request reschedule", 403);
       }
+
+      const narrative = mergeAppointmentNarratives({
+        appointmentId: id,
+        actorRole: "PATIENT",
+        existingReason: existing.reason,
+        existingPatientNotes: existing.patientNotes,
+        existingStaffNotes: existing.staffNotes,
+        proposedPatientNotes: body.patientNotes,
+        // Patients may freely edit their own notes (overwrite allowed for self).
+        allowOverwritePatientNotes: true
+      });
+
       const appointment = await prisma.appointment.update({
         where: { id },
         data: {
           ...(body.status ? { status: body.status } : {}),
-          ...(body.patientNotes !== undefined ? { patientNotes: body.patientNotes } : {})
+          ...(narrative.patientNotes !== undefined ? { patientNotes: narrative.patientNotes } : {})
         },
         include: { patient: true, doctor: true, profile: true }
       });
@@ -177,7 +194,7 @@ appointmentsRouter.put(
         targetType: "Appointment",
         targetId: id,
         ipAddress: req.ip,
-        metadata: { status: body.status }
+        metadata: { status: body.status, provenance: narrative.provenance }
       });
 
       res.json({ appointment });
@@ -211,14 +228,26 @@ appointmentsRouter.put(
       }
     }
 
+    // Confirm ≠ check-in: only set arrival time when the desk explicitly sends checkedInAt.
     const checkIn =
       body.checkedInAt !== undefined
         ? body.checkedInAt
           ? new Date(body.checkedInAt)
           : null
-        : body.status === "CONFIRMED" && !existing.checkedInAt
-          ? new Date()
-          : undefined;
+        : undefined;
+
+    const narrative = mergeAppointmentNarratives({
+      appointmentId: id,
+      actorRole: req.auth!.role,
+      existingReason: existing.reason,
+      existingPatientNotes: existing.patientNotes,
+      existingStaffNotes: existing.staffNotes,
+      proposedReason: body.reason,
+      proposedPatientNotes: body.patientNotes,
+      proposedStaffNotes: body.staffNotes,
+      allowOverwriteReason: body.allowOverwriteReason,
+      allowOverwritePatientNotes: body.allowOverwritePatientNotes
+    });
 
     const appointment = await prisma.appointment.update({
       where: { id },
@@ -227,9 +256,11 @@ appointmentsRouter.put(
         ...(body.doctorId !== undefined ? { doctorId: body.doctorId } : {}),
         ...(body.scheduledAt ? { scheduledAt: new Date(body.scheduledAt) } : {}),
         ...(body.durationMinutes ? { durationMinutes: body.durationMinutes } : {}),
-        ...(body.reason !== undefined ? { reason: body.reason } : {}),
-        ...(body.patientNotes !== undefined ? { patientNotes: body.patientNotes } : {}),
-        ...(body.staffNotes !== undefined ? { staffNotes: body.staffNotes } : {}),
+        ...(narrative.reason !== undefined ? { reason: narrative.reason } : {}),
+        ...(narrative.patientNotes !== undefined ? { patientNotes: narrative.patientNotes } : {}),
+        ...(narrative.staffNotes !== undefined
+          ? { staffNotes: narrative.staffNotes ? sanitizeText(narrative.staffNotes) : narrative.staffNotes }
+          : {}),
         ...(body.category ? { category: body.category } : {}),
         ...(body.status ? { status: body.status } : {}),
         ...(checkIn !== undefined ? { checkedInAt: checkIn } : {})
@@ -245,7 +276,15 @@ appointmentsRouter.put(
       targetType: "Appointment",
       targetId: id,
       ipAddress: req.ip,
-      metadata: { status: body.status, checkedIn: Boolean(checkIn) }
+      metadata: {
+        status: body.status,
+        checkedIn: Boolean(checkIn),
+        provenance: narrative.provenance,
+        overwriteFlags: {
+          reason: Boolean(body.allowOverwriteReason),
+          patientNotes: Boolean(body.allowOverwritePatientNotes)
+        }
+      }
     });
 
     res.json({ appointment });

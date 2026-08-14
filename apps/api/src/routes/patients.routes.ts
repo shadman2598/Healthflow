@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createPatientSchema, idParamSchema, updatePatientSchema } from "@technovate/shared";
+import { idParamSchema, updatePatientSchema } from "@technovate/shared";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/require-auth";
 import { enrichAuth } from "../middleware/enrich-auth";
 import { canManagePatients, isClinicOps } from "../lib/permissions";
 import { doctorAccessibleProfilesWhere } from "../lib/patient-access";
+import { writeAuditLog } from "../lib/audit";
 
 export const patientsRouter = Router();
 
@@ -41,15 +42,12 @@ patientsRouter.post(
   asyncHandler(async (req, res) => {
     if (!isClinicOps(req.auth!)) throw new AppError("Forbidden", 403);
 
-    const body = createPatientSchema.parse(req.body);
-
-    const patient = await prisma.patient.create({
-      data: {
-        ...body,
-        organizationId: req.auth!.activeOrganizationId
-      }
-    });
-    res.status(201).json({ patient });
+    // Canonical demographics live on PatientProfile — avoid a second entry form.
+    throw new AppError(
+      "Create patients via POST /patient-profiles (canonical demographics). Legacy POST /patients is disabled to prevent double entry.",
+      400,
+      { code: "USE_PATIENT_PROFILE", canonical: "PatientProfile" }
+    );
   })
 );
 
@@ -75,6 +73,18 @@ patientsRouter.get(
     });
     if (!patient) throw new AppError("Patient not found", 404);
 
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "PATIENT_VIEWED",
+      targetType: "Patient",
+      targetId: id,
+      source: "api:/patients",
+      ipAddress: req.ip,
+      metadata: { legacyRecord: true }
+    });
+
     res.json({ patient });
   })
 );
@@ -96,6 +106,19 @@ patientsRouter.put(
       where: { id },
       data
     });
+
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "PATIENT_UPDATED",
+      targetType: "Patient",
+      targetId: id,
+      source: "api:/patients",
+      ipAddress: req.ip,
+      metadata: { fields: Object.keys(data), legacyRecord: true }
+    });
+
     res.json({ patient });
   })
 );
@@ -113,6 +136,19 @@ patientsRouter.delete(
     if (!existing) throw new AppError("Patient not found", 404);
 
     await prisma.patient.delete({ where: { id } });
+
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "PATIENT_DELETED",
+      targetType: "Patient",
+      targetId: id,
+      source: "api:/patients",
+      ipAddress: req.ip,
+      metadata: { legacyRecord: true }
+    });
+
     res.status(204).send();
   })
 );

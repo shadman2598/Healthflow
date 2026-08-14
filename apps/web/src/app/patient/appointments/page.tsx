@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRolePage";
 import { AppointmentStatusBadge } from "../../../components/healthflow/AppointmentStatusBadge";
 import { TrustBanner } from "../../../components/healthflow/TrustBanner";
@@ -10,8 +11,13 @@ import { EmptyState } from "../../../components/ui/EmptyState";
 import { IconCalendar } from "../../../components/ui/Icons";
 import { ApiError, apiRequest } from "../../../lib/api";
 import { findClinicFee } from "../../../lib/clinic-fees";
-import { resolvePatientNextStep, VISIT_REQUEST_DRAFT_PATH } from "../../../lib/patient-journey";
+import {
+  getLocalPrepProgress,
+  resolvePatientNextStep,
+  VISIT_REQUEST_DRAFT_PATH
+} from "../../../lib/patient-journey";
 import { useToast } from "../../../contexts/toast-context";
+import { cn } from "../../../lib/utils";
 import type { HealthFlowAppointment } from "../../../types/healthflow";
 
 function formatDateTime(iso: string): string {
@@ -25,11 +31,34 @@ function formatDateTime(iso: string): string {
 }
 
 export default function PatientAppointmentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedRolePage allowedRoles={["PATIENT"]}>
+          <div className="flex h-48 items-center justify-center" role="status">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+            <span className="sr-only">Loading appointments</span>
+          </div>
+        </ProtectedRolePage>
+      }
+    >
+      <PatientAppointmentsContent />
+    </Suspense>
+  );
+}
+
+function PatientAppointmentsContent() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
   const [appointments, setAppointments] = useState<HealthFlowAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deepLinkDone, setDeepLinkDone] = useState(false);
+
+  const action = searchParams.get("action");
+  const targetId = searchParams.get("id");
 
   const load = async (): Promise<void> => {
     const res = await apiRequest<{ appointments: HealthFlowAppointment[] }>("/appointments");
@@ -50,7 +79,9 @@ export default function PatientAppointmentsPage() {
         await load();
         setLoadError(null);
       } catch {
-        setLoadError("We couldn’t load your appointments. Your bookings were not changed. Retry or contact reception.");
+        setLoadError(
+          "We couldn’t load your appointments. Your bookings were not changed. Retry or contact reception."
+        );
         showToast("Failed to load appointments", "error");
       } finally {
         setLoading(false);
@@ -74,9 +105,26 @@ export default function PatientAppointmentsPage() {
     [appointments]
   );
 
+  const nextUpcoming = upcoming[0];
   const journeyStep = useMemo(
-    () => resolvePatientNextStep({ isGuest, appointments, threads: [] }),
-    [isGuest, appointments]
+    () =>
+      resolvePatientNextStep({
+        isGuest,
+        appointments: appointments.map((a) => ({
+          id: a.id,
+          scheduledAt: a.scheduledAt,
+          status: a.status,
+          reason: a.reason,
+          category: a.category,
+          checkedInAt: a.checkedInAt,
+          doctor: a.doctor
+            ? { firstName: a.doctor.firstName, lastName: a.doctor.lastName }
+            : null
+        })),
+        threads: [],
+        prepProgress: getLocalPrepProgress(nextUpcoming?.id)
+      }),
+    [isGuest, appointments, nextUpcoming?.id]
   );
 
   const lateCancelFee = findClinicFee("late-cancel");
@@ -84,7 +132,7 @@ export default function PatientAppointmentsPage() {
   const hoursUntil = (iso: string): number =>
     (new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60);
 
-  const updateStatus = async (id: string, status: string, scheduledAt?: string): Promise<void> => {
+  const updateStatus = async (id: string, status: string, scheduledAt?: string): Promise<boolean> => {
     if (status === "CANCELLED" && scheduledAt) {
       const hours = hoursUntil(scheduledAt);
       const feeNote =
@@ -93,29 +141,55 @@ export default function PatientAppointmentsPage() {
           : lateCancelFee
             ? `\n\nCancel at least 24 hours ahead when possible to avoid the ${lateCancelFee.cost} late-cancel fee.`
             : "";
-      if (!window.confirm(`Cancel this appointment?${feeNote}`)) return;
+      if (!window.confirm(`Cancel this appointment?${feeNote}`)) return false;
     }
     try {
+      setConfirmingId(id);
       await apiRequest(`/appointments/${id}`, { method: "PUT", body: { status } });
-      showToast("Appointment updated");
+      showToast(status === "CONFIRMED" ? "Visit confirmed — you’re all set" : "Appointment updated");
       await load();
+      return true;
     } catch (error) {
-      showToast(error instanceof ApiError ? error.message : "Update failed — no change was saved", "error");
+      showToast(
+        error instanceof ApiError
+          ? error.message
+          : "Update failed — your appointment was not changed. Retry or contact reception.",
+        "error"
+      );
+      return false;
+    } finally {
+      setConfirmingId(null);
     }
   };
+
+  useEffect(() => {
+    if (loading || isGuest || deepLinkDone || action !== "confirm" || !targetId) return;
+    const appt = appointments.find((a) => a.id === targetId);
+    if (!appt) return;
+    if (appt.status !== "SCHEDULED") {
+      setDeepLinkDone(true);
+      return;
+    }
+    void updateStatus(targetId, "CONFIRMED").then(() => setDeepLinkDone(true));
+    // intentionally one-shot after load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, isGuest, action, targetId, appointments, deepLinkDone]);
 
   return (
     <ProtectedRolePage allowedRoles={["PATIENT"]}>
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-slate-900">Appointment History</h1>
-        <p className="mt-1 text-sm text-slate-500">Upcoming visits and past appointments</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Your visits</h1>
+        <p className="mt-1 text-sm text-slate-500">Confirm, change, or review — without hunting</p>
       </div>
 
       <TrustBanner context="booking" className="mb-6" />
       <WhatsNextCard step={journeyStep} className="mb-6" compact />
 
       {loadError ? (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert">
+        <div
+          className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="alert"
+        >
           <p className="font-medium">Couldn’t refresh appointments</p>
           <p className="mt-1">{loadError}</p>
           <button
@@ -142,7 +216,10 @@ export default function PatientAppointmentsPage() {
       ) : (
         <div className="space-y-8">
           <section aria-labelledby="upcoming-heading">
-            <h2 id="upcoming-heading" className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2
+              id="upcoming-heading"
+              className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500"
+            >
               Upcoming
             </h2>
             {upcoming.length === 0 ? (
@@ -154,17 +231,26 @@ export default function PatientAppointmentsPage() {
             ) : (
               <div className="space-y-3">
                 {upcoming.map((appt) => (
-                  <div key={appt.id} className="card p-4">
+                  <div
+                    key={appt.id}
+                    className={cn("card p-4", targetId === appt.id && "ring-2 ring-teal-500 ring-offset-2")}
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{formatDateTime(appt.scheduledAt)}</p>
-                        <p className="text-xs text-slate-500">{appt.reason ?? appt.category.replace("_", " ")}</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatDateTime(appt.scheduledAt)}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {appt.reason ?? appt.category.replace("_", " ")}
+                        </p>
                         {appt.doctor ? (
                           <p className="mt-1 text-xs text-slate-500">
                             Dr. {appt.doctor.firstName} {appt.doctor.lastName}
                           </p>
                         ) : null}
-                        {appt.patientNotes ? <p className="mt-2 text-xs text-slate-600">{appt.patientNotes}</p> : null}
+                        {appt.checkedInAt ? (
+                          <p className="mt-1 text-xs font-medium text-teal-700">Checked in</p>
+                        ) : null}
                       </div>
                       <AppointmentStatusBadge status={appt.status} />
                     </div>
@@ -173,9 +259,10 @@ export default function PatientAppointmentsPage() {
                         <button
                           type="button"
                           className="btn-primary text-xs"
+                          disabled={confirmingId === appt.id}
                           onClick={() => void updateStatus(appt.id, "CONFIRMED")}
                         >
-                          Confirm
+                          {confirmingId === appt.id ? "Confirming…" : "Confirm"}
                         </button>
                       ) : null}
                       <button
@@ -207,7 +294,10 @@ export default function PatientAppointmentsPage() {
           </section>
 
           <section aria-labelledby="history-heading">
-            <h2 id="history-heading" className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <h2
+              id="history-heading"
+              className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500"
+            >
               History
             </h2>
             {history.length === 0 ? (
@@ -217,8 +307,12 @@ export default function PatientAppointmentsPage() {
                 {history.map((appt) => (
                   <div key={appt.id} className="flex items-center justify-between px-6 py-4">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">{formatDateTime(appt.scheduledAt)}</p>
-                      <p className="text-xs text-slate-500">{appt.reason ?? appt.category.replace("_", " ")}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {formatDateTime(appt.scheduledAt)}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {appt.reason ?? appt.category.replace("_", " ")}
+                      </p>
                     </div>
                     <AppointmentStatusBadge status={appt.status} />
                   </div>

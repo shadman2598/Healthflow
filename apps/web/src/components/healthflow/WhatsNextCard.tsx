@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AppointmentStatusBadge } from "./AppointmentStatusBadge";
+import { JourneyContinuum } from "./JourneyContinuum";
 import type { JourneyStep } from "../../lib/patient-journey";
 import { cn } from "../../lib/utils";
 import type { AppointmentStatus } from "../../types/healthflow";
@@ -32,6 +33,10 @@ export function WhatsNextCard({ step, className, compact }: WhatsNextCardProps) 
       )}
       aria-labelledby="whats-next-title"
     >
+      {!compact && step.phases?.length ? (
+        <JourneyContinuum phases={step.phases} className="mb-4" />
+      ) : null}
+
       <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">{step.eyebrow}</p>
       <h2 id="whats-next-title" className={cn("mt-1 font-semibold text-slate-900", compact ? "text-base" : "text-xl")}>
         {step.title}

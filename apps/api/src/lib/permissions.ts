@@ -11,10 +11,19 @@ export type AuthContext = {
   doctorProfileId?: string;
 };
 
-const STAFF_ROLES: UserRole[] = ["RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"];
+const STAFF_ROLES: UserRole[] = [
+  "RECEPTIONIST",
+  "DOCTOR",
+  "NURSE",
+  "BILLING",
+  "ADMIN",
+  "SUPER_ADMIN"
+];
+
+/** Full front-desk / admin ops (not nurse/billing/doctor). */
 const CLINIC_MANAGEMENT: UserRole[] = ["RECEPTIONIST", "ADMIN", "SUPER_ADMIN"];
 
-/** @deprecated Prefer REMINDER_RULE via permission catalog — kept for route wiring. */
+/** @deprecated Prefer permission catalog — kept for route wiring. */
 export const REMINDER_RULE_ROLES: UserRole[] = ["RECEPTIONIST", "ADMIN", "SUPER_ADMIN"];
 
 export function requireRole(auth: AuthContext, ...roles: UserRole[]): boolean {
@@ -29,7 +38,7 @@ export function isStaff(auth: AuthContext): boolean {
   return STAFF_ROLES.includes(auth.role);
 }
 
-/** Reception / admin — full clinic patient & schedule access (not doctor-scoped). */
+/** Reception / admin — full clinic patient & schedule mutations. */
 export function isClinicOps(auth: AuthContext): boolean {
   return CLINIC_MANAGEMENT.includes(auth.role);
 }
@@ -61,19 +70,23 @@ export function canManageReminderRules(auth: AuthContext): boolean {
 }
 
 /**
- * Sync check only — patients self, clinic ops all profiles.
+ * Sync check only — patients self; clinic-directory roles (reception/nurse/billing/admin);
  * Doctors must use assertCanViewPatientProfile (assigned or shared appointment).
  */
 export function canViewPatient(auth: AuthContext, patientProfileId: string): boolean {
-  if (auth.role === "PATIENT") return auth.patientProfileId === patientProfileId;
-  if (auth.role === "DOCTOR") return false;
-  return isClinicOps(auth);
+  if (authHasPermission(auth, "patient:read_own")) {
+    return auth.patientProfileId === patientProfileId;
+  }
+  if (authHasPermission(auth, "patient:read_clinic")) return true;
+  if (authHasPermission(auth, "patient:read_assigned")) return false;
+  return false;
 }
 
 export function canMessagePatient(auth: AuthContext, patientProfileId: string): boolean {
   if (auth.role === "PATIENT") return auth.patientProfileId === patientProfileId;
-  if (auth.role === "DOCTOR") return false;
-  return isClinicOps(auth);
+  if (authHasPermission(auth, "message:read_clinic")) return true;
+  if (authHasPermission(auth, "message:read_assigned_inbox")) return false;
+  return false;
 }
 
 export function roleDashboardPath(role: UserRole): string {
@@ -81,9 +94,12 @@ export function roleDashboardPath(role: UserRole): string {
     case "PATIENT":
       return "/patient/dashboard";
     case "RECEPTIONIST":
+    case "NURSE":
       return "/receptionist/dashboard";
     case "DOCTOR":
       return "/doctor/dashboard";
+    case "BILLING":
+      return "/resources";
     case "ADMIN":
     case "SUPER_ADMIN":
       return "/admin/dashboard";
@@ -97,9 +113,12 @@ export function roleLoginPath(role: UserRole): string {
     case "PATIENT":
       return "/login/patient";
     case "RECEPTIONIST":
+    case "NURSE":
       return "/login/receptionist";
     case "DOCTOR":
       return "/login/doctor";
+    case "BILLING":
+      return "/login/admin";
     case "ADMIN":
     case "SUPER_ADMIN":
       return "/login/admin";

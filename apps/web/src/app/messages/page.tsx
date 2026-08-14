@@ -87,6 +87,11 @@ function MessagesContent() {
   const loadThreads = async (): Promise<void> => {
     const res = await apiRequest<{ threads: MessageThread[] }>("/messages/threads");
     setThreads(res.threads);
+    const deepLink = searchParams.get("threadId");
+    if (deepLink) {
+      setSelectedId(deepLink);
+      return;
+    }
     if (!selectedId && res.threads.length > 0) {
       setSelectedId(res.threads[0].id);
     }
@@ -98,6 +103,11 @@ function MessagesContent() {
     setShowNewThread(true);
     setNewSubject("Visit prep / question for my clinician");
     setNewBody(draft);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const threadId = searchParams.get("threadId");
+    if (threadId) setSelectedId(threadId);
   }, [searchParams]);
 
   useEffect(() => {

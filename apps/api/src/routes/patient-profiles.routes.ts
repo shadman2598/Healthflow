@@ -16,6 +16,7 @@ import { assertCanViewPatientProfile, doctorAccessibleProfilesWhere } from "../l
 import { assertSameOrganization } from "../lib/org-scope";
 import { maskHealthcareNumber, sanitizeText } from "../lib/sanitize";
 import { writeAuditLog } from "../lib/audit";
+import { mergeProfileDemographics } from "../lib/data-propagation";
 
 import { rateLimit } from "../middleware/rate-limit";
 
@@ -351,15 +352,60 @@ patientProfilesRouter.put(
     }
 
     const data = updatePatientProfileSchema.parse(req.body);
-    const profile = await prisma.patientProfile.update({
-      where: { id },
-      data: {
-        ...data,
-        firstName: data.firstName ? sanitizeText(data.firstName, 100) : undefined,
-        lastName: data.lastName ? sanitizeText(data.lastName, 100) : undefined,
-        internalNotes: data.internalNotes ? sanitizeText(data.internalNotes) : undefined,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined
+    const { allowOverwriteDemographics, ...fields } = data;
+
+    const demo = mergeProfileDemographics({
+      profileId: id,
+      actorRole: auth.role,
+      existing: {
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        email: existing.email,
+        phone: existing.phone,
+        healthcareNumber: existing.healthcareNumber,
+        address: existing.address,
+        dateOfBirth: existing.dateOfBirth
+      },
+      proposed: {
+        firstName: fields.firstName,
+        lastName: fields.lastName,
+        email: fields.email,
+        phone: fields.phone,
+        healthcareNumber: fields.healthcareNumber,
+        address: fields.address,
+        dateOfBirth: fields.dateOfBirth
+      },
+      allowOverwriteDemographics
+    });
+
+    const profile = await prisma.$transaction(async (tx) => {
+      const updated = await tx.patientProfile.update({
+        where: { id },
+        data: {
+          ...demo.data,
+          ...(fields.heightCm !== undefined ? { heightCm: fields.heightCm } : {}),
+          ...(fields.weightKg !== undefined ? { weightKg: fields.weightKg } : {}),
+          ...(fields.internalNotes !== undefined
+            ? { internalNotes: fields.internalNotes ? sanitizeText(fields.internalNotes) : fields.internalNotes }
+            : {}),
+          ...(fields.assignedDoctorId !== undefined ? { assignedDoctorId: fields.assignedDoctorId } : {}),
+          ...(fields.isRegularPatient !== undefined ? { isRegularPatient: fields.isRegularPatient } : {}),
+          ...(fields.reminderPrefEmail !== undefined ? { reminderPrefEmail: fields.reminderPrefEmail } : {}),
+          ...(fields.reminderPrefSms !== undefined ? { reminderPrefSms: fields.reminderPrefSms } : {}),
+          ...(fields.reminderPrefApp !== undefined ? { reminderPrefApp: fields.reminderPrefApp } : {}),
+          ...(fields.reminderFrequency !== undefined ? { reminderFrequency: fields.reminderFrequency } : {})
+        }
+      });
+
+      // Keep reminder-engine Patient row in sync — never a second demographic entry point.
+      if (demo.mirror) {
+        await tx.patient.updateMany({
+          where: { profileId: id, organizationId: auth.activeOrganizationId },
+          data: demo.mirror
+        });
       }
+
+      return updated;
     });
 
     await writeAuditLog({
@@ -369,7 +415,12 @@ patientProfilesRouter.put(
       action: "PATIENT_UPDATED",
       targetType: "PatientProfile",
       targetId: id,
-      ipAddress: req.ip
+      ipAddress: req.ip,
+      metadata: {
+        provenance: demo.provenance,
+        mirroredToPatient: Boolean(demo.mirror),
+        allowOverwriteDemographics: Boolean(allowOverwriteDemographics)
+      }
     });
 
     res.json({ profile: { ...profile, healthcareNumber: maskHealthcareNumber(profile.healthcareNumber) } });

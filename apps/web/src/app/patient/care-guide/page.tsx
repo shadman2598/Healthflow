@@ -44,8 +44,9 @@ export default function CareGuidePage() {
     <Suspense
       fallback={
         <ProtectedRolePage allowedRoles={["PATIENT"]}>
-          <div className="flex h-48 items-center justify-center">
+          <div className="flex h-48 items-center justify-center" role="status">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+            <span className="sr-only">Loading Care Guide</span>
           </div>
         </ProtectedRolePage>
       }
@@ -58,6 +59,7 @@ export default function CareGuidePage() {
 function CareGuideContent() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as TabId | null) ?? "guide";
+  const deepLinkApptId = searchParams.get("appointmentId");
   const [tab, setTab] = useState<TabId>(["guide", "prep", "ask"].includes(initialTab) ? initialTab : "guide");
 
   const [pathway, setPathway] = useState<CarePathway | null>(null);
@@ -68,6 +70,7 @@ function CareGuideContent() {
   const [appointments, setAppointments] = useState<HealthFlowAppointment[]>([]);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [doctorQuestions, setDoctorQuestions] = useState("");
+  const [prepHydrated, setPrepHydrated] = useState(false);
 
   const [askQuery, setAskQuery] = useState("");
   const feeHits = useMemo(() => feeAssistHits(), []);
@@ -102,32 +105,56 @@ function CareGuideContent() {
     void load();
   }, []);
 
-  const nextAppt = appointments[0] ?? null;
+  /** Prefer deep-linked visit so prep is not re-answered for the wrong appointment. */
+  const nextAppt = useMemo(() => {
+    if (deepLinkApptId) {
+      const match = appointments.find((a) => a.id === deepLinkApptId);
+      if (match) return match;
+    }
+    return appointments[0] ?? null;
+  }, [appointments, deepLinkApptId]);
+
   const prepItems: VisitPrepItem[] = useMemo(() => {
     const extras = nextAppt ? VISIT_PREP_BY_CATEGORY[nextAppt.category] ?? VISIT_PREP_BY_CATEGORY.OTHER : VISIT_PREP_BY_CATEGORY.OTHER;
     return [...VISIT_PREP_BASE, ...extras];
   }, [nextAppt]);
 
   useEffect(() => {
+    setPrepHydrated(false);
     const saved = loadPrepProgress();
-    if (!saved) return;
-    if (nextAppt && saved.appointmentId && saved.appointmentId !== nextAppt.id) return;
+    if (!saved) {
+      setChecked({});
+      setPrepHydrated(true);
+      return;
+    }
+    if (nextAppt && saved.appointmentId && saved.appointmentId !== nextAppt.id) {
+      setChecked({});
+      setPrepHydrated(true);
+      return;
+    }
+    if (deepLinkApptId && saved.appointmentId && saved.appointmentId !== deepLinkApptId) {
+      setChecked({});
+      setPrepHydrated(true);
+      return;
+    }
     const map: Record<string, boolean> = {};
     for (const id of saved.checkedIds) map[id] = true;
     setChecked(map);
-  }, [nextAppt?.id]);
+    setPrepHydrated(true);
+  }, [nextAppt?.id, deepLinkApptId]);
 
   useEffect(() => {
+    if (!prepHydrated) return;
     const checkedIds = Object.entries(checked)
       .filter(([, v]) => v)
       .map(([id]) => id);
     if (checkedIds.length === 0 && !nextAppt) return;
     savePrepProgress({
-      appointmentId: nextAppt?.id,
+      appointmentId: nextAppt?.id ?? deepLinkApptId ?? undefined,
       checkedIds,
       updatedAt: new Date().toISOString()
     });
-  }, [checked, nextAppt?.id]);
+  }, [checked, nextAppt?.id, deepLinkApptId, prepHydrated]);
 
   const resetGuide = (): void => {
     setPathway(null);
@@ -191,7 +218,7 @@ function CareGuideContent() {
         <p className="mt-1 leading-relaxed">{CARE_DISCLAIMER}</p>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Care Guide sections">
         {(
           [
             { id: "guide" as const, label: "What should I do?", icon: IconClipboard },
@@ -204,13 +231,16 @@ function CareGuideContent() {
             <button
               key={item.id}
               type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              id={`care-guide-tab-${item.id}`}
               onClick={() => setTab(item.id)}
               className={cn(
                 "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
                 tab === item.id ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden />
               {item.label}
             </button>
           );
@@ -218,7 +248,7 @@ function CareGuideContent() {
       </div>
 
       {tab === "guide" ? (
-        <div className="space-y-6">
+        <div className="space-y-6" role="tabpanel" aria-labelledby="care-guide-tab-guide">
           {!pathway ? (
             <>
               <p className="text-sm text-slate-600">
@@ -293,20 +323,20 @@ function CareGuideContent() {
       ) : null}
 
       {tab === "prep" ? (
-        <div className="space-y-6">
+        <div className="space-y-6" role="tabpanel" aria-labelledby="care-guide-tab-prep">
           <div className="card p-6">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
-                <IconCalendar className="h-5 w-5" />
+                <IconCalendar className="h-5 w-5" aria-hidden />
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Visit prep</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Like MyChart visit preparation: a practical checklist so you get more from the appointment.
+                  A short checklist for this visit — answer once; progress is saved for this appointment.
                 </p>
                 {nextAppt ? (
                   <p className="mt-3 text-sm text-slate-700">
-                    Next visit:{" "}
+                    Preparing for:{" "}
                     <span className="font-medium">
                       {new Date(nextAppt.scheduledAt).toLocaleString([], {
                         weekday: "short",
@@ -329,7 +359,7 @@ function CareGuideContent() {
             </div>
           </div>
 
-          <div className="card divide-y divide-slate-100">
+          <div className="card divide-y divide-slate-100" role="group" aria-label="Visit preparation checklist">
             {prepItems.map((item) => (
               <label key={item.id} className="flex cursor-pointer items-start gap-3 px-6 py-4">
                 <input
@@ -337,12 +367,19 @@ function CareGuideContent() {
                   className="mt-1"
                   checked={!!checked[item.id]}
                   onChange={(e) => setChecked((prev) => ({ ...prev, [item.id]: e.target.checked }))}
+                  aria-describedby={item.detail ? `prep-detail-${item.id}` : undefined}
                 />
                 <span>
                   <span className="block text-sm font-medium text-slate-900">{item.label}</span>
-                  {item.detail ? <span className="mt-0.5 block text-xs text-slate-500">{item.detail}</span> : null}
+                  {item.detail ? (
+                    <span id={`prep-detail-${item.id}`} className="mt-0.5 block text-xs text-slate-500">
+                      {item.detail}
+                    </span>
+                  ) : null}
                 </span>
-                {checked[item.id] ? <IconCheckCircle className="ml-auto h-5 w-5 shrink-0 text-teal-600" /> : null}
+                {checked[item.id] ? (
+                  <IconCheckCircle className="ml-auto h-5 w-5 shrink-0 text-teal-600" aria-hidden />
+                ) : null}
               </label>
             ))}
           </div>
@@ -374,19 +411,28 @@ function CareGuideContent() {
       ) : null}
 
       {tab === "ask" ? (
-        <div className="space-y-6">
+        <div className="space-y-6" role="tabpanel" aria-labelledby="care-guide-tab-ask">
           <div className="card p-6">
             <h2 className="text-lg font-semibold text-slate-900">Ask the clinic</h2>
             <p className="mt-1 text-sm text-slate-500">
               Portal-style assistant (like MyChart Emmie for navigation): search fees, FAQ, and how-to answers. Not clinical advice.
             </p>
             <div className="relative mt-4">
-              <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <label htmlFor="care-ask-query" className="sr-only">
+                Search clinic help
+              </label>
+              <IconSearch
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+                aria-hidden
+              />
               <input
-                className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-sm"
+                id="care-ask-query"
+                type="search"
+                className="w-full min-h-[44px] rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-sm"
                 placeholder='Try “sick note”, “reschedule”, “pharmacy”, “privacy”…'
                 value={askQuery}
                 onChange={(e) => setAskQuery(e.target.value)}
+                autoComplete="off"
               />
             </div>
           </div>

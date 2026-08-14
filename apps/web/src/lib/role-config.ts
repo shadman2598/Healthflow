@@ -18,7 +18,10 @@ export type NavItemConfig = {
   icon: NavIconKey;
 };
 
-export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", NavItemConfig[]> = {
+export const ROLE_NAV: Record<
+  "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "NURSE" | "BILLING" | "ADMIN",
+  NavItemConfig[]
+> = {
   PATIENT: [
     { href: "/patient/dashboard", label: "Dashboard", icon: "dashboard" },
     { href: "/patient/care-guide", label: "Care Guide", icon: "clipboard" },
@@ -32,6 +35,7 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
   ],
   RECEPTIONIST: [
     { href: "/receptionist/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/admin/analytics", label: "Outcomes", icon: "clipboard" },
     { href: "/patients", label: "Patients", icon: "users" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/messages", label: "Messages", icon: "chat" },
@@ -44,14 +48,30 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
   DOCTOR: [
     { href: "/doctor/dashboard", label: "Dashboard", icon: "dashboard" },
     { href: "/doctor/cockpit", label: "Cockpit", icon: "clipboard" },
+    { href: "/admin/analytics", label: "Outcomes", icon: "clipboard" },
     { href: "/patients", label: "Patients", icon: "users" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/messages", label: "Messages", icon: "chat" },
     { href: "/resources", label: "Fees & Resources", icon: "search" },
     { href: "/faq", label: "FAQ", icon: "help" }
   ],
+  NURSE: [
+    { href: "/receptionist/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/patients", label: "Patients", icon: "users" },
+    { href: "/calendar", label: "Calendar", icon: "calendar" },
+    { href: "/messages", label: "Messages", icon: "chat" },
+    { href: "/resources", label: "Fees & Resources", icon: "search" },
+    { href: "/faq", label: "FAQ", icon: "help" }
+  ],
+  BILLING: [
+    { href: "/resources", label: "Fees & Resources", icon: "search" },
+    { href: "/patients", label: "Patients", icon: "users" },
+    { href: "/calendar", label: "Calendar", icon: "calendar" },
+    { href: "/faq", label: "FAQ", icon: "help" }
+  ],
   ADMIN: [
     { href: "/admin/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/admin/analytics", label: "Analytics", icon: "clipboard" },
     { href: "/patients", label: "Patients", icon: "users" },
     { href: "/admin/staff", label: "Staff", icon: "users" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
@@ -67,6 +87,7 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
 
 export function normalizeRole(role: HealthFlowRole): keyof typeof ROLE_NAV {
   if (role === "SUPER_ADMIN") return "ADMIN";
+  if (role === "DOCTOR") return "DOCTOR";
   return role;
 }
 
@@ -75,9 +96,12 @@ export function roleDashboardPath(role: HealthFlowRole): string {
     case "PATIENT":
       return "/patient/dashboard";
     case "RECEPTIONIST":
+    case "NURSE":
       return "/receptionist/dashboard";
     case "DOCTOR":
       return "/doctor/dashboard";
+    case "BILLING":
+      return "/resources";
     case "ADMIN":
     case "SUPER_ADMIN":
       return "/admin/dashboard";
@@ -91,9 +115,11 @@ export function roleLoginPath(role: HealthFlowRole): string {
     case "PATIENT":
       return "/login/patient";
     case "RECEPTIONIST":
+    case "NURSE":
       return "/login/receptionist";
     case "DOCTOR":
       return "/login/doctor";
+    case "BILLING":
     case "ADMIN":
     case "SUPER_ADMIN":
       return "/login/admin";

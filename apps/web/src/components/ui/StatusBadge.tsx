@@ -19,14 +19,17 @@ export function StatusBadge({ variant, children, dot = false }: StatusBadgeProps
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${variants[variant]}`}>
       {dot ? (
-        <span className={`h-1.5 w-1.5 rounded-full ${
-          variant === "success" ? "bg-emerald-500" :
-          variant === "warning" ? "bg-amber-500" :
-          variant === "error" ? "bg-red-500" :
-          variant === "info" ? "bg-blue-500" :
-          variant === "purple" ? "bg-purple-500" :
-          "bg-slate-400"
-        }`} />
+        <span
+          aria-hidden
+          className={`h-1.5 w-1.5 rounded-full ${
+            variant === "success" ? "bg-emerald-500" :
+            variant === "warning" ? "bg-amber-500" :
+            variant === "error" ? "bg-red-500" :
+            variant === "info" ? "bg-blue-500" :
+            variant === "purple" ? "bg-purple-500" :
+            "bg-slate-400"
+          }`}
+        />
       ) : null}
       {children}
     </span>

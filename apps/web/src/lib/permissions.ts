@@ -38,5 +38,20 @@ export const FEATURE_PERMISSIONS = {
   reminderRules: "reminder:manage_rules",
   clinicSettings: "clinic:settings",
   createPatient: "patient:create",
-  revealHcn: "patient:reveal_hcn"
+  revealHcn: "patient:reveal_hcn",
+  manageInvoices: "billing:manage_invoices",
+  updateVitals: "clinical:update_vitals",
+  clinicPatientDirectory: "patient:read_clinic",
+  assignedPatients: "patient:read_assigned",
+  aiAdminAssist: "ai:use_admin",
+  aiClinicalAssist: "ai:use_clinical_assist",
+  aiReview: "ai:review"
 } as const satisfies Record<string, Permission>;
+
+/** Resolve product persona aliases for UX (mirrors shared resolveRbacRole). */
+export function normalizeProductRole(role: string): string {
+  if (role === "CLINICIAN") return "DOCTOR";
+  if (role === "ADMINISTRATOR") return "ADMIN";
+  if (role === "STAFF") return "NURSE";
+  return role;
+}

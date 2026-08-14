@@ -104,7 +104,8 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/admin/audit-logs" className="btn-primary">Audit Logs</Link>
+            <Link href="/admin/analytics" className="btn-primary">Outcomes analytics</Link>
+            <Link href="/admin/audit-logs" className="btn-secondary">Audit Logs</Link>
             <Link href="/overdue-checkups" className="btn-secondary">Overdue Checkups</Link>
             <Link href="/calendar" className="btn-secondary">Calendar</Link>
           </div>

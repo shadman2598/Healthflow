@@ -21,7 +21,10 @@ export function errorHandler(
   }
 
   if (error instanceof AppError) {
-    res.status(error.statusCode).json({ error: error.message });
+    res.status(error.statusCode).json({
+      error: error.message,
+      ...(error.details ? { details: error.details } : {})
+    });
     return;
   }
 

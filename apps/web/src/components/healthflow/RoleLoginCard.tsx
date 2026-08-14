@@ -91,9 +91,9 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
       </div>
 
       <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-sm">
-          <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700">
-            <IconArrowLeft className="h-4 w-4" />
+        <main id="main-content" className="w-full max-w-sm" tabIndex={-1}>
+          <Link href="/" className="mb-6 inline-flex min-h-[44px] items-center gap-1.5 text-sm text-slate-600 hover:text-slate-800">
+            <IconArrowLeft className="h-4 w-4" aria-hidden />
             Who are you?
           </Link>
 
@@ -118,31 +118,44 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
 
           <form className="mt-6 space-y-5" onSubmit={onSubmit}>
             <div>
-              <label className="label">Email address</label>
+              <label className="label" htmlFor="login-email">
+                Email address
+              </label>
               <input
+                id="login-email"
+                name="email"
                 type="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full"
+                className="w-full min-h-[44px]"
                 placeholder="you@example.com"
               />
             </div>
             <div>
-              <label className="label">Password</label>
+              <label className="label" htmlFor="login-password">
+                Password
+              </label>
               <input
+                id="login-password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full"
+                className="w-full min-h-[44px]"
                 placeholder="Enter your password"
               />
             </div>
-            <button type="submit" disabled={loading} className="btn-primary w-full">
+            <button type="submit" disabled={loading} className="btn-primary w-full" aria-busy={loading}>
               {loading ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <div
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+                    aria-hidden
+                  />
                   Signing in...
                 </>
               ) : (
@@ -178,10 +191,10 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
             </p>
           ) : null}
 
-          <p className="mt-8 text-center text-xs text-slate-400">
+          <p className="mt-8 text-center text-xs text-slate-600">
             Protected health information &middot; Privacy compliant
           </p>
-        </div>
+        </main>
       </div>
     </div>
   );

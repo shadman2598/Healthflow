@@ -31,7 +31,7 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm
       transition-all hover:from-brand-700 hover:to-teal-700 active:from-brand-800 active:to-teal-800 disabled:hover:from-brand-600 disabled:hover:to-teal-600;
   }
 
@@ -44,23 +44,23 @@
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm
       transition-all hover:bg-slate-50 active:bg-slate-100;
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 shadow-sm
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 shadow-sm
       transition-all hover:bg-red-50 active:bg-red-100;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600
       transition-all hover:bg-slate-100 active:bg-slate-200;
   }
 
   .btn-icon {
-    @apply inline-flex items-center justify-center rounded-lg p-2 text-slate-400
-      transition-all hover:bg-slate-100 hover:text-slate-600;
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-lg p-2 text-slate-500
+      transition-all hover:bg-slate-100 hover:text-slate-700;
   }
 
   .card {

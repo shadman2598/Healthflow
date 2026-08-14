@@ -126,33 +126,35 @@ export function RoleShell({ children }: RoleShellProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white" aria-label="Clinic navigation">
         <div className="flex h-16 items-center gap-2.5 border-b border-slate-100 px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-teal-600">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-teal-600" aria-hidden>
             <IconShield className="h-4 w-4 text-white" />
           </div>
           <div>
             <span className="text-[15px] font-semibold text-slate-900">HealthFlow</span>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-teal-600">{navRole.toLowerCase()}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-teal-700">{navRole.toLowerCase()}</p>
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
           <div className="space-y-1">
             {navItems.map((item) => {
               const Icon = iconMap[item.icon];
+              const active = isActive(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive(item.href)
+                    "group flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
                       ? "bg-brand-50 text-brand-700"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   )}
                 >
-                  <span className={isActive(item.href) ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600"}>
+                  <span className={active ? "text-brand-600" : "text-slate-500 group-hover:text-slate-600"} aria-hidden>
                     <Icon className="h-5 w-5" />
                   </span>
                   {item.label}
@@ -163,29 +165,41 @@ export function RoleShell({ children }: RoleShellProps) {
         </nav>
 
         <div className="border-t border-slate-100 px-3 py-3">
-          {canSwitchClinic && clinics.length > 1 ? (
-            <select
-              className="mb-2 w-full text-xs"
-              value={user.activeOrganizationId}
-              onChange={(e) => void onClinicChange(e.target.value)}
-            >
-              {clinics.map((clinic) => (
-                <option key={clinic.id} value={clinic.id}>
-                  {clinic.name}
-                </option>
-              ))}
-            </select>
+          {canSwitchClinic && clinics.length > 1 && user ? (
+            <div className="mb-2">
+              <label htmlFor="clinic-switcher" className="sr-only">
+                Active clinic
+              </label>
+              <select
+                id="clinic-switcher"
+                className="w-full min-h-[44px] text-sm"
+                value={user.activeOrganizationId}
+                onChange={(e) => void onClinicChange(e.target.value)}
+              >
+                {clinics.map((clinic) => (
+                  <option key={clinic.id} value={clinic.id}>
+                    {clinic.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : null}
           <div className="flex items-center gap-3 rounded-lg px-2 py-2">
             <Avatar name={displayName} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-900">{displayName}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-600">
                 {isGuestSession() ? "Guest preview" : user?.organization?.name ?? user?.role ?? ""}
               </p>
             </div>
-            <button onClick={() => void logout()} className="btn-icon shrink-0" title="Sign out">
-              <IconLogOut className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="btn-icon shrink-0"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <IconLogOut className="h-4 w-4" aria-hidden />
             </button>
           </div>
         </div>
@@ -194,15 +208,17 @@ export function RoleShell({ children }: RoleShellProps) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-8">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-teal-600">HealthFlow</p>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs font-medium uppercase tracking-wider text-teal-700">HealthFlow</p>
+            <p className="text-sm text-slate-600">
               {isGuestSession()
                 ? "Guest preview — browse features without an account"
                 : user?.organization?.name ?? "Loading..."}
             </p>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-8">{children}</main>
+        <main id="main-content" className="flex-1 overflow-y-auto p-8" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );

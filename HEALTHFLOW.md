@@ -127,9 +127,20 @@ See [SECURITY.md](./SECURITY.md) for RBAC rules, audit logging, consent, rate li
 
 ## Product philosophy (Prompt 49)
 
-HealthFlow is a **clinic Healthcare Operating System** — coordinating patient, receptionist, and clinician around one care journey. North-star metric: **minutes of unnecessary healthcare work eliminated per day**.
+**Positioning:** HealthFlow is a **clinic Healthcare Operating System** — coordinating patient, clinic staff, clinicians, and healthcare data around the patient’s entire care journey. It is **not** “another healthcare app,” an AI doctor, or a patient-only portal.
 
-AI is bounded to administrative assistance only (`packages/shared/src/ai-safety.ts`). Interop starts with FHIR-shaped export adapters (`/interop/fhir/*`), not a vendor lock-in.
+**North-star metric:** *How many minutes of unnecessary healthcare work did our platform eliminate today?*  
+(Tracked as a calibrated proxy on `/admin/analytics` via workflow events — not downloads, DAU, or screen time.)
+
+**Infrastructure equation:** Great UX + deep workflow integration + interoperability + trust/security + immediate tangible value + automation + longitudinal continuity + multi-stakeholder value → healthcare infrastructure people actually depend on.
+
+**Adoption warning:** Patient adoption alone is not enough. Real-world portal adoption is often lower than controlled-study adoption; provider workload and attitudes become barriers when systems add work. Features must eliminate work for patients *and* reception *and* clinicians.
+
+**AI / interop stance:** AI is bounded by clinical-safety tiers (`packages/shared/src/ai-safety.ts`) — high-risk diagnosis/treatment/Rx/triage blocked. Interop starts with FHIR-shaped adapters (`/interop/fhir/*`), not vendor lock-in.
+
+**Sources to keep close:** Epic MyChart / patient experience metrics; Zocdoc EHR/PMS integrations; ONC hospital APIs & FHIR; CMS Patient Access API; HHS mobile health privacy/security; AHRQ physician burnout/workload; systematic reviews of portal adoption, barriers/facilitators, mHealth usability, and health-app engagement.
+
+Canonical constants: `packages/shared/src/product-positioning.ts`.
 
 ## Recently landed capabilities (prompts 33–48)
 
@@ -139,9 +150,9 @@ AI is bounded to administrative assistance only (`packages/shared/src/ai-safety.
 | Front Desk OS | `/receptionist/dashboard` queue + check-in |
 | Clinician cockpit | `/doctor/cockpit` who/why/provenance |
 | Scheduling engine | Overlap conflict checks on create/update |
-| Notifications | Quiet hours + channel/frequency prefs |
+| Notifications | Quiet hours + channel/frequency prefs + usefulness gating |
+| Analytics | Outcome dashboards `/admin/analytics` + `/analytics/events` (not vanity engagement) |
 | Interop | FHIR Patient & Appointment export |
-| Analytics | `/analytics/events` → audit trail |
 | Quality / security review | Canvases: quality gate + security audit |
 
 ## Future roadmap

@@ -2,9 +2,12 @@
  * HealthFlow RBAC catalog — shared by API (enforcement) and web (UX guards).
  * Backend remains the security boundary; frontend checks are for UX only.
  *
- * CLINICIAN in product language maps to DOCTOR in the data model.
- * NURSE and BILLING are defined here for least-privilege readiness; activate
- * in Prisma UserRole + signup when those personas ship.
+ * Product personas → data roles:
+ * - CLINICIAN → DOCTOR
+ * - ADMINISTRATOR → ADMIN
+ * - NURSE/STAFF → NURSE
+ * - BILLING → BILLING
+ * - PATIENT / RECEPTIONIST → same
  */
 
 export const PERMISSIONS = [
@@ -42,7 +45,7 @@ export const PERMISSIONS = [
   "reminder:manage_clinic",
   "reminder:manage_rules",
 
-  // Billing (future-facing)
+  // Billing
   "billing:read_fees",
   "billing:manage_invoices",
 
@@ -55,18 +58,35 @@ export const PERMISSIONS = [
 
   // Clinical support (nurse-oriented)
   "clinical:read_chart_summary",
-  "clinical:update_intake"
+  "clinical:update_vitals",
+
+  // AI safety gates (Prompt 40)
+  "ai:use_admin",
+  "ai:use_clinical_assist",
+  "ai:review"
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-/** Roles recognized by the permission matrix (includes future personas). */
+/** Roles persisted in Prisma UserRole (+ product aliases resolved at runtime). */
 export type RbacRole =
   | "PATIENT"
   | "RECEPTIONIST"
   | "DOCTOR"
   | "NURSE"
   | "BILLING"
+  | "ADMIN"
+  | "SUPER_ADMIN";
+
+/** External / product names that map onto RbacRole. */
+export type ProductPersona =
+  | "PATIENT"
+  | "RECEPTIONIST"
+  | "CLINICIAN"
+  | "NURSE"
+  | "STAFF"
+  | "BILLING"
+  | "ADMINISTRATOR"
   | "ADMIN"
   | "SUPER_ADMIN";
 
@@ -99,7 +119,8 @@ const RECEPTIONIST_PERMS: Permission[] = [
   "message:manage_thread",
   "reminder:read_clinic",
   "reminder:manage_clinic",
-  "reminder:manage_rules"
+  "reminder:manage_rules",
+  "ai:use_admin"
 ];
 
 const DOCTOR_PERMS: Permission[] = [
@@ -114,9 +135,12 @@ const DOCTOR_PERMS: Permission[] = [
   "message:manage_thread",
   "reminder:read_clinic",
   "reminder:manage_clinic",
-  "clinical:read_chart_summary"
+  "clinical:read_chart_summary",
+  "ai:use_clinical_assist",
+  "ai:review"
 ];
 
+/** Care-necessary clinical + clinic directory; no scheduling CRUD or admin. */
 const NURSE_PERMS: Permission[] = [
   ...ALL_STAFF_READ_FEES,
   "patient:read_clinic",
@@ -125,10 +149,13 @@ const NURSE_PERMS: Permission[] = [
   "message:read_clinic",
   "message:reply",
   "clinical:read_chart_summary",
-  "clinical:update_intake",
-  "reminder:read_clinic"
+  "clinical:update_vitals",
+  "reminder:read_clinic",
+  "ai:use_clinical_assist",
+  "ai:review"
 ];
 
+/** Financial + read-only schedule/directory; no messaging or HCN reveal. */
 const BILLING_PERMS: Permission[] = [
   "billing:read_fees",
   "billing:manage_invoices",
@@ -144,10 +171,12 @@ const ADMIN_PERMS: Permission[] = [
   "clinic:settings",
   "clinic:switch_org",
   "clinical:read_chart_summary",
-  "billing:manage_invoices"
+  "billing:manage_invoices",
+  "ai:use_admin",
+  "ai:use_clinical_assist",
+  "ai:review"
 ];
 
-/** SUPER_ADMIN inherits admin + explicit org switch (already in admin). */
 const SUPER_ADMIN_PERMS: Permission[] = [...ADMIN_PERMS];
 
 export const ROLE_PERMISSIONS: Record<RbacRole, readonly Permission[]> = {
@@ -160,9 +189,11 @@ export const ROLE_PERMISSIONS: Record<RbacRole, readonly Permission[]> = {
   SUPER_ADMIN: SUPER_ADMIN_PERMS
 };
 
-/** Product alias: Clinician → Doctor permissions. */
+/** Product alias → persisted RBAC role. */
 export function resolveRbacRole(role: string): RbacRole | null {
   if (role === "CLINICIAN") return "DOCTOR";
+  if (role === "ADMINISTRATOR") return "ADMIN";
+  if (role === "STAFF") return "NURSE";
   if (role in ROLE_PERMISSIONS) return role as RbacRole;
   return null;
 }
@@ -183,4 +214,13 @@ export function hasAllPermissions(role: string, permissions: Permission[]): bool
 
 export function hasAnyPermission(role: string, permissions: Permission[]): boolean {
   return permissions.some((p) => hasPermission(role, p));
+}
+
+/** Least-privilege check helper for resource gates. */
+export function canReadClinicPatients(role: string): boolean {
+  return hasPermission(role, "patient:read_clinic");
+}
+
+export function canReadAssignedPatients(role: string): boolean {
+  return hasPermission(role, "patient:read_assigned");
 }

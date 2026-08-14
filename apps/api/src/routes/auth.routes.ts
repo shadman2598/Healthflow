@@ -184,8 +184,8 @@ authRouter.post(
     const body = staffSignupSchema.parse(req.body);
     const inviteCode = body.inviteCode.trim().toUpperCase();
 
-    if (body.role !== "RECEPTIONIST" && body.role !== "DOCTOR") {
-      throw new AppError("Staff sign-up is limited to doctor and receptionist roles", 403);
+    if (!["RECEPTIONIST", "DOCTOR", "NURSE", "BILLING"].includes(body.role)) {
+      throw new AppError("Staff sign-up is limited to receptionist, clinician, nurse, and billing roles", 403);
     }
 
     const invite = await prisma.roleInvite.findUnique({ where: { code: inviteCode } });
@@ -377,7 +377,7 @@ authRouter.post(
                 }
               }
             }
-          : body.role === "RECEPTIONIST"
+          : ["RECEPTIONIST", "NURSE", "BILLING"].includes(body.role)
             ? {
                 staffProfile: {
                   create: {
@@ -390,6 +390,40 @@ authRouter.post(
             : {})
       },
       select: { id: true, email: true, role: true, createdAt: true, organizationId: true }
+    });
+
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "STAFF_CREATED",
+      targetType: "User",
+      targetId: user.id,
+      source: "api:/auth/staff",
+      ipAddress: req.ip,
+      metadata: { email: user.email, role: user.role, targetOrganizationId }
+    });
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "ROLE_CHANGED",
+      targetType: "User",
+      targetId: user.id,
+      source: "api:/auth/staff",
+      ipAddress: req.ip,
+      metadata: { from: null, to: user.role, via: "staff_create" }
+    });
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "ADMIN_ACTION",
+      targetType: "User",
+      targetId: user.id,
+      source: "api:/auth/staff",
+      ipAddress: req.ip,
+      metadata: { adminAction: "create_staff" }
     });
 
     res.status(201).json({ user });
@@ -416,7 +450,14 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = createInviteSchema.parse(req.body);
     const orgId = req.auth!.activeOrganizationId;
-    const prefix = body.role === "DOCTOR" ? "HF-DOCTOR" : "HF-RECEPT";
+    const prefix =
+      body.role === "DOCTOR"
+        ? "HF-DOCTOR"
+        : body.role === "NURSE"
+          ? "HF-NURSE"
+          : body.role === "BILLING"
+            ? "HF-BILL"
+            : "HF-RECEPT";
     const code = `${prefix}-${Date.now().toString(36).toUpperCase()}`;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + body.expiresInDays);
@@ -429,6 +470,29 @@ authRouter.post(
         email: body.email,
         expiresAt
       }
+    });
+
+    await writeAuditLog({
+      organizationId: orgId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "STAFF_INVITE_CREATED",
+      targetType: "RoleInvite",
+      targetId: invite.id,
+      source: "api:/auth/invites",
+      ipAddress: req.ip,
+      metadata: { role: body.role, email: body.email ?? null }
+    });
+    await writeAuditLog({
+      organizationId: orgId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "PERMISSION_CHANGED",
+      targetType: "RoleInvite",
+      targetId: invite.id,
+      source: "api:/auth/invites",
+      ipAddress: req.ip,
+      metadata: { change: "invite_created", role: body.role }
     });
 
     res.status(201).json({ invite });
@@ -463,6 +527,19 @@ authRouter.post(
     if (!clinic) throw new AppError("Clinic not found", 404);
 
     setActiveOrganizationCookie(res, clinic.id);
+
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "ADMIN_ACTION",
+      targetType: "Organization",
+      targetId: clinic.id,
+      source: "api:/auth/select-clinic",
+      ipAddress: req.ip,
+      metadata: { adminAction: "switch_org", toOrganizationId: clinic.id }
+    });
+
     res.json({ ok: true, activeOrganizationId: clinic.id });
   })
 );

@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { provenance } from "@technovate/shared";
 import { SecureFieldReveal } from "../../../components/healthflow/SecureFieldReveal";
 import { AppointmentStatusBadge } from "../../../components/healthflow/AppointmentStatusBadge";
+import { ProvenanceTrail } from "../../../components/healthflow/ProvenanceTrail";
+import { TrustBanner } from "../../../components/healthflow/TrustBanner";
 import { ApiError, apiRequest } from "../../../lib/api";
 import { useToast } from "../../../contexts/toast-context";
 import type { HealthFlowAppointment } from "../../../types/healthflow";
@@ -42,6 +45,44 @@ export default function PatientProfilePage() {
       .finally(() => setLoading(false));
   }, [params.id, showToast]);
 
+  const provenanceRows = useMemo(() => {
+    if (!profile) return [];
+    return [
+      provenance({
+        field: "demographics.email",
+        valueSummary: profile.email,
+        source: "receptionist_entered",
+        resourceType: "PatientProfile",
+        resourceId: profile.id
+      }),
+      provenance({
+        field: "demographics.phone",
+        valueSummary: profile.phone,
+        source: "receptionist_entered",
+        resourceType: "PatientProfile",
+        resourceId: profile.id
+      }),
+      ...(profile.dateOfBirth
+        ? [
+            provenance({
+              field: "demographics.dateOfBirth",
+              valueSummary: new Date(profile.dateOfBirth).toLocaleDateString(),
+              source: "patient_provided",
+              resourceType: "PatientProfile",
+              resourceId: profile.id
+            })
+          ]
+        : []),
+      provenance({
+        field: "demographics.healthcareNumber",
+        valueSummary: "On file (masked in UI)",
+        source: "patient_provided",
+        resourceType: "PatientProfile",
+        resourceId: profile.id
+      })
+    ];
+  }, [profile]);
+
   if (loading) {
     return <div className="card p-8 text-center text-sm text-slate-500">Loading profile...</div>;
   }
@@ -64,10 +105,15 @@ export default function PatientProfilePage() {
         Back to patients
       </Link>
 
+      <TrustBanner context="profile" />
+
       <div className="card p-6">
         <h1 className="text-2xl font-semibold text-slate-900">
           {profile.firstName} {profile.lastName}
         </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Canonical demographics (PatientProfile) — mirrored to reminder Patient row, not re-entered
+        </p>
         <p className="mt-1 text-sm text-slate-500">{profile.email} · {profile.phone}</p>
 
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -150,6 +196,8 @@ export default function PatientProfilePage() {
           </ul>
         </section>
       </div>
+
+      <ProvenanceTrail rows={provenanceRows} title="Demographics provenance" />
     </div>
   );
 }

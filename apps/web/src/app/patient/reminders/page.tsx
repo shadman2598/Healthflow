@@ -19,6 +19,9 @@ type PatientProfile = {
   reminderFrequency?: ReminderFrequency;
   quietHoursStart?: number | null;
   quietHoursEnd?: number | null;
+  notificationsOptOut?: boolean;
+  notificationsActionOnly?: boolean;
+  notificationLocale?: "en-CA" | "fr_CA";
 };
 
 const FREQUENCY_OPTIONS: {
@@ -92,7 +95,10 @@ export default function PatientRemindersPage() {
           reminderPrefApp: profile.reminderPrefApp,
           reminderFrequency: profile.reminderFrequency ?? "DAY_BEFORE",
           quietHoursStart: profile.quietHoursStart ?? null,
-          quietHoursEnd: profile.quietHoursEnd ?? null
+          quietHoursEnd: profile.quietHoursEnd ?? null,
+          notificationsOptOut: profile.notificationsOptOut ?? false,
+          notificationsActionOnly: profile.notificationsActionOnly ?? false,
+          notificationLocale: profile.notificationLocale ?? "en-CA"
         }
       });
       showToast("Reminder settings saved");
@@ -253,6 +259,45 @@ export default function PatientRemindersPage() {
                     {String(h).padStart(2, "0")}:00
                   </option>
                 ))}
+              </select>
+            </label>
+          </div>
+
+          <h3 className="mt-6 text-sm font-semibold text-slate-900">Notification intelligence</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            We only notify when something useful needs your attention — not for every system event.
+          </p>
+          <div className="mt-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={profile.notificationsOptOut ?? false}
+                onChange={(e) => setProfile({ ...profile, notificationsOptOut: e.target.checked })}
+              />
+              Opt out of non-critical notifications
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={profile.notificationsActionOnly ?? false}
+                onChange={(e) => setProfile({ ...profile, notificationsActionOnly: e.target.checked })}
+              />
+              Only notify when I need to take action
+            </label>
+            <label className="block text-sm text-slate-700">
+              Language
+              <select
+                className="ml-2"
+                value={profile.notificationLocale ?? "en-CA"}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    notificationLocale: e.target.value as "en-CA" | "fr_CA"
+                  })
+                }
+              >
+                <option value="en-CA">English (Canada)</option>
+                <option value="fr_CA">Français (Canada)</option>
               </select>
             </label>
           </div>

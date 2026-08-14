@@ -11,6 +11,10 @@ import { resourcesRouter } from "./resources.routes";
 import { remindersRouter } from "./reminders.routes";
 import { analyticsRouter } from "./analytics.routes";
 import { interopRouter } from "./interop.routes";
+import { schedulingRouter } from "./scheduling.routes";
+import { notificationsRouter } from "./notifications.routes";
+import { aiRouter } from "./ai.routes";
+import { nextActionsRouter } from "./next-actions.routes";
 
 export const apiRouter = Router();
 
@@ -37,3 +41,7 @@ apiRouter.use("/resources", resourcesRouter);
 apiRouter.use("/reminders", remindersRouter);
 apiRouter.use("/analytics", analyticsRouter);
 apiRouter.use("/interop", interopRouter);
+apiRouter.use("/scheduling", schedulingRouter);
+apiRouter.use("/notifications", notificationsRouter);
+apiRouter.use("/ai", aiRouter);
+apiRouter.use("/next-actions", nextActionsRouter);

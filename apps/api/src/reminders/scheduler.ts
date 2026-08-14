@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { env } from "../config/env";
+import { runEscalationScan } from "../lib/notification-intelligence";
 import { prisma } from "../lib/prisma";
 import { scanAndEnqueueDueReminders } from "./reminder-engine";
 
@@ -11,9 +12,11 @@ async function tick(): Promise<void> {
   busy = true;
 
   try {
-    const count = await scanAndEnqueueDueReminders(new Date());
+    const now = new Date();
+    const count = await scanAndEnqueueDueReminders(now);
+    const escalated = await runEscalationScan(now);
     // eslint-disable-next-line no-console
-    console.log(`[reminder-scheduler] tick complete, enqueued=${count}`);
+    console.log(`[reminder-scheduler] tick complete, enqueued=${count}, escalated=${escalated}`);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("[reminder-scheduler] tick failed", error);

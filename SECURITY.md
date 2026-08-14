@@ -21,18 +21,18 @@ HealthFlow is a **clinic workflow platform** — not a diagnostic or treatment t
 
 | Role | Access summary |
 |------|----------------|
-| Patient | Own profile, appointments, messages, reminders, resources |
-| Receptionist | Clinic patients, scheduling, messages, reminders (no admin settings) |
-| Doctor | Assigned patients + patients with appointments on their schedule; own appointments; assigned/unassigned message inbox |
-| Admin / Super Admin | Staff, patients, audit logs, system settings |
+| Patient | Own profile, appointments, messages, reminders, fee schedule read |
+| Receptionist | Clinic patients, scheduling CRUD, messages, reminder rules |
+| Clinician (`DOCTOR`) | Assigned patients + shared appointments; own schedule; assigned inbox |
+| Nurse | Clinic directory read, messages, vitals update; no schedule CRUD / admin |
+| Billing | Fee/invoice perms + read-only patients/appointments; no messaging / HCN reveal |
+| Admin / Super Admin | Staff, audit logs, clinic settings, org switch (super/admin) |
 
-Permission catalog lives in `@technovate/shared` (`rbac.ts`): granular permissions (`patient:read_assigned`, `audit:read`, …) mapped per role. **NURSE** and **BILLING** matrices are defined for future activation (not yet in Prisma `UserRole`). Product “Clinician” maps to `DOCTOR`.
+Product aliases: `CLINICIAN` → `DOCTOR`, `ADMINISTRATOR` → `ADMIN`, `STAFF` → `NURSE`.
 
-API authorization is enforced on the server (`requireAuth`, `requirePermissions`, `assertCanViewPatientProfile`, appointment ownership, org-scope checks). Frontend role/permission pages are UX only — never the security boundary.
+Permission catalog lives in `@technovate/shared` (`rbac.ts`): granular permissions mapped per role. API authorization is enforced on the server (`requireAuth`, `requirePermissions`, `assertCanViewPatientProfile`, appointment ownership, org-scope checks). Frontend role/permission pages and `PermissionGate` are UX only — never the security boundary.
 
-`requireAuth` reloads the user on each request: inactive (`isActive=false`) accounts are rejected even with a valid JWT; non-admins cannot forge another clinic via the active-org cookie.
-
-Clinic-wide reminder rules (`/reminder-rules`) require `reminder:manage_rules` (receptionist/admin).
+`requireAuth` reloads the user on each request: inactive (`isActive=false`) accounts are rejected even with a valid JWT; live DB role is preferred over stale JWT claims (revoked privileges take effect immediately); non-admins cannot forge another clinic via the active-org cookie.
 
 ## Data minimization
 
@@ -48,17 +48,13 @@ Clinic-wide reminder rules (`/reminder-rules`) require `reminder:manage_rules` (
 
 ## Audit logging
 
-`AuditLog` records include:
+`AuditLog` is an **append-only** trail (Prompt 43). Application APIs expose **GET only**; POST/PUT/PATCH/DELETE on `/audit-logs` return **405**. Writers go through `writeAuditLog` (create-only).
 
-- Login / logout
-- Patient viewed / created / updated
-- Appointment created / updated
-- Message sent / read
-- Reminder created / sent
-- Role changed
-- Healthcare number revealed
+Events cover authentication, record access/modification/deletion, permission/role changes, data export/sharing, AI generate/review/block, appointment and schedule changes, admin actions, and blocked prescription/order attempts (HealthFlow is not an Rx SoR).
 
-Fields: actor user id, actor role, action, target type/id, timestamp, IP placeholder, metadata JSON. **Admin-only** full audit log UI.
+Each event includes actor, role, organization, resource (`targetType`/`targetId`), action, timestamp (`createdAt`), source, and metadata (plus `auditTrailVersion` / category). **Admin-only** full audit log UI (`audit:read`).
+
+Fields: actor user id, actor role, action, target type/id, source, timestamp, IP placeholder, metadata JSON.
 
 ## Encryption & sensitive fields
 
@@ -66,15 +62,46 @@ Fields: actor user id, actor role, action, target type/id, timestamp, IP placeho
 - Application-level field encryption can be added for `healthcareNumber` using AES-GCM with a KMS-managed key (roadmap).
 - JWT secret and provider API keys must live in environment variables only — never committed.
 
-## Rate limiting
+## Interoperability (FHIR)
 
-Applied to:
+- Vendor-neutral adapters live in `@technovate/shared` (`fhir.ts`, `interop.ts`). Domain models are **not** coupled to Epic/Cerner SDKs.
+- Local connector maps HealthFlow SoR → FHIR R4 (`Patient`, `Practitioner`, `Organization`, `Appointment`, `Encounter`). Clinical chart resources return `OperationOutcome` until an EHR connector is registered.
+- `/interop/fhir/*` requires auth + RBAC, rate limits (60/min), privacy consent for patient-identifiable exports, audit `DATA_EXPORTED`, retries on transient connector failures, and idempotent `/interop/sync/probe` via `Idempotency-Key`.
+- Stub EHR connectors (`ehr-stub-epic`, `ehr-stub-cerner`) demonstrate swap-in without rewriting core routes.
 
-- Login attempts
-- Messaging endpoints
-- Patient search
+## Scheduling engine
 
-Uses in-memory sliding window in development; replace with Redis-backed limiter in production.
+- Bookings go through `bookAppointmentTransactional` (Serializable isolation + conflict re-check + optional `Idempotency-Key`) to prevent double-book races.
+- Provider weekly availability, schedule blocks, buffers, waitlist, and `/scheduling/sync` envelopes support external calendar sync without owning HealthFlow IDs.
+- Insurance/eligibility gates are policy checks (HCN / phone) — not a payer integration.
+
+## AI clinical-safety architecture
+
+AI must **not** silently make clinical decisions. Capabilities are explicitly tiered in `@technovate/shared` (`ai-safety.ts`):
+
+| Tier | Examples | Policy |
+|------|----------|--------|
+| Low-risk administrative | summarization, routing, extraction, classification, scheduling hints, drafting | Allowed with human review; RBAC `ai:use_admin` |
+| Clinical assistance | visit/history summaries, draft documentation, information retrieval | Allowed as **unverified drafts** only; RBAC `ai:use_clinical_assist` + `ai:review` |
+| High-risk clinical | diagnosis, treatment recommendations, medication decisions, triage | **Blocked** before generation |
+
+Safety controls on every AI artifact:
+
+- Source attribution, confidence/uncertainty notes, human review workflow
+- Audit actions `AI_GENERATED` / `AI_REVIEWED` / `AI_BLOCKED` / `AI_FAILED`
+- Prompt version (`AI_PROMPT_VERSION`) and model id tracking
+- PHI-minimizing redaction before stub/model input; outputs always carry an unverified-fact disclaimer
+- Failure/block handling persists status without presenting content as charted fact
+
+API surface: `/ai/capabilities`, `/ai/artifacts`, `/ai/artifacts/:id/review` (rate-limited). No live clinical model is required for the safety contract — stubs still go through the same gates.
+
+## NEXT_ACTION workflow intelligence
+
+`NEXT_ACTION` (`packages/shared/src/next-action.ts`) recommends **workflow** next steps for patient, receptionist, clinician, nurse, and admin — never diagnosis or prescribing.
+
+Every recommendation includes reason, structured source data, responsible role, urgency, status, and timestamp. Decisions are auditable (`NEXT_ACTION_DISMISSED` / `RESTORED` / `COMPLETED`) and reversible via `NextActionOverride` (dismiss does not delete history; restore clears the override).
+
+API: `GET /next-actions`, `POST /next-actions/dismiss|complete|restore`.
 
 ## Session management
 

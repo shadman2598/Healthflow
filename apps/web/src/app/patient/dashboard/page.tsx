@@ -6,16 +6,23 @@ import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRoleP
 import { WhatsNextCard } from "../../../components/healthflow/WhatsNextCard";
 import { DashboardCard } from "../../../components/healthflow/DashboardCard";
 import { AppointmentStatusBadge } from "../../../components/healthflow/AppointmentStatusBadge";
-import { KpiCard } from "../../../components/ui/KpiCard";
 import { EmptyState } from "../../../components/ui/EmptyState";
-import { IconCalendar, IconChat, IconClipboard, IconPlus, IconSearch } from "../../../components/ui/Icons";
+import { IconCalendar, IconChat, IconClipboard } from "../../../components/ui/Icons";
 import { apiRequest } from "../../../lib/api";
-import { resolvePatientNextStep } from "../../../lib/patient-journey";
+import { getLocalPrepProgress, prepVisitHref, resolvePatientNextStep } from "../../../lib/patient-journey";
 import type { HealthFlowAppointment, MessageThread } from "../../../types/healthflow";
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function pickNextVisitIdFromList(appointments: HealthFlowAppointment[]): string | undefined {
+  const active = new Set(["SCHEDULED", "CONFIRMED", "RESCHEDULE_REQUESTED"]);
+  const next = [...appointments]
+    .filter((a) => active.has(a.status) && new Date(a.scheduledAt).getTime() >= Date.now() - 60_000)
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+  return next?.id;
 }
 
 export default function PatientDashboardPage() {
@@ -24,56 +31,69 @@ export default function PatientDashboardPage() {
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = async (): Promise<void> => {
+    const { isGuestSession } = await import("../../../lib/guest-session");
+    if (isGuestSession()) {
+      setIsGuest(true);
+      setAppointments([]);
+      setAllAppointments([]);
+      setThreads([]);
+      setLoadError(null);
+      return;
+    }
+    const now = new Date().toISOString();
+    const [apptRes, allApptRes, threadRes] = await Promise.all([
+      apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?from=${encodeURIComponent(now)}`),
+      apiRequest<{ appointments: HealthFlowAppointment[] }>("/appointments"),
+      apiRequest<{ threads: MessageThread[] }>("/messages/threads")
+    ]);
+    setIsGuest(false);
+    setAppointments(apptRes.appointments.slice(0, 5));
+    setAllAppointments(allApptRes.appointments);
+    setThreads(threadRes.threads.slice(0, 8));
+    setLoadError(null);
+  };
 
   useEffect(() => {
-    const load = async (): Promise<void> => {
-      try {
-        const { isGuestSession } = await import("../../../lib/guest-session");
-        if (isGuestSession()) {
-          setIsGuest(true);
-          setAppointments([]);
-          setAllAppointments([]);
-          setThreads([]);
-          return;
-        }
-        const now = new Date().toISOString();
-        const [apptRes, allApptRes, threadRes] = await Promise.all([
-          apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?from=${encodeURIComponent(now)}`).catch(() => ({
-            appointments: [] as HealthFlowAppointment[]
-          })),
-          apiRequest<{ appointments: HealthFlowAppointment[] }>("/appointments").catch(() => ({
-            appointments: [] as HealthFlowAppointment[]
-          })),
-          apiRequest<{ threads: MessageThread[] }>("/messages/threads").catch(() => ({
-            threads: [] as MessageThread[]
-          }))
-        ]);
-        setAppointments(apptRes.appointments.slice(0, 5));
-        setAllAppointments(allApptRes.appointments);
-        setThreads(threadRes.threads.slice(0, 8));
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
+    void load()
+      .catch(() => {
+        setLoadError(
+          "We couldn’t load your care journey. Your appointments were not changed. Retry or contact reception."
+        );
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const unreadMessages = threads.filter((t) => t.status === "UNREAD" || t.status === "PENDING").length;
+  const sourceAppts = allAppointments.length ? allAppointments : appointments;
+  const nextId = pickNextVisitIdFromList(sourceAppts);
   const journeyStep = useMemo(
     () =>
       resolvePatientNextStep({
         isGuest,
-        appointments: allAppointments.length ? allAppointments : appointments,
-        threads
+        appointments: sourceAppts.map((a) => ({
+          id: a.id,
+          scheduledAt: a.scheduledAt,
+          status: a.status,
+          reason: a.reason,
+          category: a.category,
+          checkedInAt: a.checkedInAt,
+          doctor: a.doctor
+            ? { firstName: a.doctor.firstName, lastName: a.doctor.lastName }
+            : null
+        })),
+        threads,
+        prepProgress: getLocalPrepProgress(nextId)
       }),
-    [isGuest, allAppointments, appointments, threads]
+    [isGuest, sourceAppts, threads, nextId]
   );
 
   return (
     <ProtectedRolePage allowedRoles={["PATIENT"]}>
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-slate-900">Patient Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">Your care journey — one clear next step</p>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-slate-900">Your care</h1>
+        <p className="mt-1 text-sm text-slate-600">One next step — minimum effort to stay on track</p>
       </div>
 
       {loading ? (
@@ -83,21 +103,41 @@ export default function PatientDashboardPage() {
         </div>
       ) : (
         <>
+          {loadError ? (
+            <div
+              className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+              role="alert"
+            >
+              <p className="font-medium">Couldn’t refresh your journey</p>
+              <p className="mt-1">{loadError}</p>
+              <button
+                type="button"
+                className="btn-secondary mt-3 text-sm"
+                onClick={() => {
+                  setLoading(true);
+                  void load()
+                    .catch(() => {
+                      setLoadError(
+                        "We couldn’t load your care journey. Your appointments were not changed. Retry or contact reception."
+                      );
+                    })
+                    .finally(() => setLoading(false));
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+
           <WhatsNextCard step={journeyStep} className="mb-8" />
 
-          <div className="grid gap-6 sm:grid-cols-3">
-            <KpiCard title="Upcoming Appointments" value={appointments.length} icon={<IconCalendar className="h-6 w-6" />} iconBg="bg-teal-50 text-teal-600" />
-            <KpiCard title="Active Messages" value={threads.length} icon={<IconChat className="h-6 w-6" />} iconBg="bg-brand-50 text-brand-600" />
-            <KpiCard title="Needs Attention" value={unreadMessages} icon={<IconChat className="h-6 w-6" />} iconBg="bg-amber-50 text-amber-600" />
-          </div>
-
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
-            <DashboardCard title="Upcoming Appointments" href="/calendar">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DashboardCard title="Upcoming" href="/patient/appointments">
               {appointments.length === 0 ? (
                 <EmptyState
                   icon={<IconCalendar className="h-10 w-10" />}
                   title="No upcoming appointments"
-                  description="Request a visit by messaging the clinic, or open Care Guide if you are unsure."
+                  description="Use your next step above to request a visit, or open Care Guide if you’re unsure."
                 />
               ) : (
                 <div className="divide-y divide-slate-100 -mx-6 -my-6">
@@ -114,9 +154,13 @@ export default function PatientDashboardPage() {
               )}
             </DashboardCard>
 
-            <DashboardCard title="Recent Messages" href="/messages">
+            <DashboardCard title="Messages" href="/messages">
               {threads.length === 0 ? (
-                <EmptyState icon={<IconChat className="h-10 w-10" />} title="No messages yet" description="Start a conversation with your care team." />
+                <EmptyState
+                  icon={<IconChat className="h-10 w-10" />}
+                  title="No messages yet"
+                  description="When the clinic needs you, it shows up here and in your next step."
+                />
               ) : (
                 <div className="divide-y divide-slate-100 -mx-6 -my-6">
                   {threads.slice(0, 3).map((thread) => (
@@ -132,45 +176,26 @@ export default function PatientDashboardPage() {
             </DashboardCard>
           </div>
 
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
-            <div className="card p-6">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                  <IconClipboard className="h-5 w-5" />
+          {journeyStep.id === "prep_visit" || journeyStep.id === "confirm_visit" ? (
+            <div className="mt-8 card p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                    <IconClipboard className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-900">Need clinic answers?</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Fees, what to bring, and when to message — without leaving your visit path.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">Care Guide</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Not sure whether to message, book, or seek urgent care? Get next-step guidance, visit prep, and clinic answers.
-                  </p>
-                  <Link href="/patient/care-guide" className="btn-primary mt-4 inline-flex">
-                    Open Care Guide
-                  </Link>
-                </div>
-              </div>
-            </div>
-            <div>
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Quick Actions</h2>
-              <div className="flex flex-wrap gap-3">
-                <Link href="/patient/care-guide?tab=prep" className="btn-secondary">
-                  <IconClipboard className="h-4 w-4" />
-                  Visit prep
-                </Link>
-                <Link href="/messages" className="btn-secondary">
-                  <IconPlus className="h-4 w-4" />
-                  New Message
-                </Link>
-                <Link href="/calendar" className="btn-secondary">
-                  <IconCalendar className="h-4 w-4" />
-                  View Calendar
-                </Link>
-                <Link href="/resources" className="btn-secondary">
-                  <IconSearch className="h-4 w-4" />
-                  Find Resources
+                <Link href={nextId ? prepVisitHref(nextId) : "/patient/care-guide"} className="btn-secondary text-sm">
+                  Open Care Guide
                 </Link>
               </div>
             </div>
-          </div>
+          ) : null}
         </>
       )}
     </ProtectedRolePage>
