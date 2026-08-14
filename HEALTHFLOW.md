@@ -2,6 +2,8 @@
 
 Secure healthcare **workflow** platform for small clinics — appointments, messaging, reminders, patient records, and staff dashboards. **Not** for diagnosis or medical advice.
 
+**Official site (GitHub Pages):** https://shadman2598.github.io/Healthflow/
+
 ## Stack
 
 | Layer | Technology |

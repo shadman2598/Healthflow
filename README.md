@@ -1,6 +1,7 @@
 # HealthFlow
 
 > **Healthcare workflow platform** for clinics — appointments, messaging, reminders, and patient records.  
+> **Official site:** https://shadman2598.github.io/Healthflow/  
 > See **[HEALTHFLOW.md](./HEALTHFLOW.md)** for setup, demo accounts, and role routes.  
 > See **[SECURITY.md](./SECURITY.md)** for privacy and security decisions.
 
