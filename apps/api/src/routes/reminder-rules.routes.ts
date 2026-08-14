@@ -4,10 +4,11 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
+import { requirePermissions } from "../middleware/require-permission";
 
 export const reminderRulesRouter = Router();
 
-reminderRulesRouter.use(requireAuth);
+reminderRulesRouter.use(requireAuth, requirePermissions("reminder:manage_rules"));
 
 reminderRulesRouter.get(
   "/",

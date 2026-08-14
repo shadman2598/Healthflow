@@ -66,11 +66,13 @@ export type HealthFlowAppointment = {
   organizationId: string;
   patientId: string;
   scheduledAt: string;
+  durationMinutes?: number;
   reason: string | null;
   patientNotes?: string | null;
   staffNotes?: string | null;
   status: AppointmentStatus;
   category: AppointmentCategory;
+  checkedInAt?: string | null;
   createdAt: string;
   patient?: { id: string; firstName: string; lastName: string };
   profile?: PatientProfile;

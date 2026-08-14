@@ -6,6 +6,7 @@ import {
   type ReminderRule
 } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { isInsideQuietHours } from "../lib/scheduling";
 import { reminderQueue } from "./queue";
 
 export function computeReminderTime(scheduledAt: Date, offsetMinutes: number): Date {
@@ -186,6 +187,12 @@ export async function scanAndEnqueueDueReminders(now = new Date()): Promise<numb
 
     for (const rule of rulesToConsider) {
       if (!channelAllowed(rule.channel, prefs)) continue;
+      if (
+        prefs &&
+        isInsideQuietHours(now, prefs.quietHoursStart, prefs.quietHoursEnd)
+      ) {
+        continue;
+      }
 
       const { due, occurrenceKey } = frequencyMatch(frequency, now, appointment.scheduledAt, rule);
       if (!due) continue;

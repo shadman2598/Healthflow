@@ -20,6 +20,7 @@ import {
   type VisitPrepItem
 } from "../../../lib/care-guide";
 import { CLINIC_FEE_CATEGORIES } from "../../../lib/clinic-fees";
+import { loadPrepProgress, savePrepProgress } from "../../../lib/patient-journey";
 import { apiRequest } from "../../../lib/api";
 import { cn } from "../../../lib/utils";
 import type { HealthFlowAppointment } from "../../../types/healthflow";
@@ -106,6 +107,27 @@ function CareGuideContent() {
     const extras = nextAppt ? VISIT_PREP_BY_CATEGORY[nextAppt.category] ?? VISIT_PREP_BY_CATEGORY.OTHER : VISIT_PREP_BY_CATEGORY.OTHER;
     return [...VISIT_PREP_BASE, ...extras];
   }, [nextAppt]);
+
+  useEffect(() => {
+    const saved = loadPrepProgress();
+    if (!saved) return;
+    if (nextAppt && saved.appointmentId && saved.appointmentId !== nextAppt.id) return;
+    const map: Record<string, boolean> = {};
+    for (const id of saved.checkedIds) map[id] = true;
+    setChecked(map);
+  }, [nextAppt?.id]);
+
+  useEffect(() => {
+    const checkedIds = Object.entries(checked)
+      .filter(([, v]) => v)
+      .map(([id]) => id);
+    if (checkedIds.length === 0 && !nextAppt) return;
+    savePrepProgress({
+      appointmentId: nextAppt?.id,
+      checkedIds,
+      updatedAt: new Date().toISOString()
+    });
+  }, [checked, nextAppt?.id]);
 
   const resetGuide = (): void => {
     setPathway(null);

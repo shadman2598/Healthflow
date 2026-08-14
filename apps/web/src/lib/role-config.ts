@@ -43,6 +43,7 @@ export const ROLE_NAV: Record<"PATIENT" | "RECEPTIONIST" | "DOCTOR" | "ADMIN", N
   ],
   DOCTOR: [
     { href: "/doctor/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/doctor/cockpit", label: "Cockpit", icon: "clipboard" },
     { href: "/patients", label: "Patients", icon: "users" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/messages", label: "Messages", icon: "chat" },

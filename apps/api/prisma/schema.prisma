@@ -82,6 +82,7 @@ enum AuditAction {
   PATIENT_UPDATED
   APPOINTMENT_CREATED
   APPOINTMENT_UPDATED
+  APPOINTMENT_DELETED
   MESSAGE_SENT
   MESSAGE_READ
   REMINDER_CREATED
@@ -89,6 +90,8 @@ enum AuditAction {
   ROLE_CHANGED
   HEALTHCARE_NUMBER_REVEALED
   STAFF_INVITE_USED
+  DATA_EXPORTED
+  ANALYTICS_EVENT
 }
 
 // Legacy reminder rules engine
@@ -203,6 +206,9 @@ model PatientProfile {
   reminderPrefApp   Boolean   @default(true)
   /// How often to remind before an upcoming appointment.
   reminderFrequency ReminderFrequency @default(DAY_BEFORE)
+  /// Quiet hours (local clinic clock, 0–23). Null = no quiet hours.
+  quietHoursStart   Int?
+  quietHoursEnd     Int?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -278,11 +284,14 @@ model Appointment {
   profileId       String?
   doctorId        String?
   scheduledAt     DateTime
+  /// Planned duration for conflict detection (default 30 minutes).
+  durationMinutes Int                 @default(30)
   reason          String?
   patientNotes    String?
   staffNotes      String?
   category        AppointmentCategory @default(CHECKUP)
   status          AppointmentStatus   @default(SCHEDULED)
+  checkedInAt     DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @default(now()) @updatedAt
 

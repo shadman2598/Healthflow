@@ -73,10 +73,11 @@ describe("reminder engine integration", () => {
 
     const log = await prisma.reminderLog.findUnique({
       where: {
-        appointmentId_ruleId_channel: {
+        appointmentId_ruleId_channel_occurrenceKey: {
           appointmentId: appointment.id,
           ruleId: rule.id,
-          channel: ReminderChannel.EMAIL
+          channel: ReminderChannel.EMAIL,
+          occurrenceKey: "once"
         }
       }
     });

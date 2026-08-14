@@ -10,7 +10,7 @@ import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
 import { enrichAuth } from "../middleware/enrich-auth";
-import { canMessagePatient } from "../lib/permissions";
+import { assertCanAccessMessageThread } from "../lib/patient-access";
 import { sanitizeText } from "../lib/sanitize";
 import { writeAuditLog } from "../lib/audit";
 import { rateLimit } from "../middleware/rate-limit";
@@ -112,7 +112,7 @@ messagesRouter.get(
       }
     });
     if (!thread) throw new AppError("Thread not found", 404);
-    if (!canMessagePatient(req.auth!, thread.patientProfileId)) throw new AppError("Forbidden", 403);
+    await assertCanAccessMessageThread(req.auth!, thread);
 
     await writeAuditLog({
       organizationId: req.auth!.activeOrganizationId,
@@ -139,7 +139,7 @@ messagesRouter.post(
       where: { id, organizationId: req.auth!.activeOrganizationId }
     });
     if (!thread) throw new AppError("Thread not found", 404);
-    if (!canMessagePatient(req.auth!, thread.patientProfileId)) throw new AppError("Forbidden", 403);
+    await assertCanAccessMessageThread(req.auth!, thread);
     if (req.auth!.role === "PATIENT" && body.isInternal) throw new AppError("Forbidden", 403);
 
     const message = await prisma.message.create({
@@ -184,6 +184,7 @@ messagesRouter.patch(
     });
     if (!thread) throw new AppError("Thread not found", 404);
     if (req.auth!.role === "PATIENT") throw new AppError("Forbidden", 403);
+    await assertCanAccessMessageThread(req.auth!, thread);
 
     const updated = await prisma.messageThread.update({
       where: { id },

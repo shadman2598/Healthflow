@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ProtectedRolePage } from "../../components/healthflow/ProtectedRolePage";
 import { AppointmentCalendar } from "../../components/healthflow/AppointmentCalendar";
+import { WhatsNextCard } from "../../components/healthflow/WhatsNextCard";
 import { APPOINTMENT_CATEGORY_COLORS } from "../../lib/role-config";
+import { resolvePatientNextStep, VISIT_REQUEST_DRAFT_PATH } from "../../lib/patient-journey";
 import { cn } from "../../lib/utils";
 import { apiRequest } from "../../lib/api";
-import type { HealthFlowAppointment } from "../../types/healthflow";
+import type { HealthFlowAppointment, HealthFlowUser } from "../../types/healthflow";
 
 type FilterOption = { id: string; label: string };
 
@@ -19,11 +22,17 @@ export default function CalendarPage() {
   const [profileId, setProfileId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [role, setRole] = useState<HealthFlowUser["role"] | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    const from = dateFrom ? new Date(dateFrom).toISOString() : new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString();
-    const to = dateTo ? new Date(dateTo).toISOString() : new Date(new Date().getFullYear(), new Date().getMonth() + 3, 0).toISOString();
+    const from = dateFrom
+      ? new Date(dateFrom).toISOString()
+      : new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString();
+    const to = dateTo
+      ? new Date(dateTo).toISOString()
+      : new Date(new Date().getFullYear(), new Date().getMonth() + 3, 0).toISOString();
     params.set("from", from);
     params.set("to", to);
     if (doctorId) params.set("doctorId", doctorId);
@@ -34,11 +43,21 @@ export default function CalendarPage() {
   useEffect(() => {
     const loadMeta = async (): Promise<void> => {
       try {
-        const { isGuestSession } = await import("../../lib/guest-session");
-        if (isGuestSession()) return;
+        const { isGuestSession, getGuestUser } = await import("../../lib/guest-session");
+        if (isGuestSession()) {
+          setIsGuest(true);
+          setRole(getGuestUser()?.role ?? "PATIENT");
+          return;
+        }
+        const me = await apiRequest<{ user: HealthFlowUser }>("/auth/me");
+        setRole(me.user.role);
         const [docRes, patientRes] = await Promise.all([
-          apiRequest<{ doctors: { id: string; firstName: string; lastName: string }[] }>("/auth/doctors").catch(() => ({ doctors: [] })),
-          apiRequest<{ profiles: { id: string; firstName: string; lastName: string }[] }>("/patient-profiles").catch(() => ({ profiles: [] }))
+          apiRequest<{ doctors: { id: string; firstName: string; lastName: string }[] }>("/auth/doctors").catch(() => ({
+            doctors: []
+          })),
+          apiRequest<{ profiles: { id: string; firstName: string; lastName: string }[] }>("/patient-profiles").catch(
+            () => ({ profiles: [] })
+          )
         ]);
         setDoctors(docRes.doctors.map((d) => ({ id: d.id, label: `Dr. ${d.lastName}` })));
         setPatients(patientRes.profiles.map((p) => ({ id: p.id, label: `${p.firstName} ${p.lastName}` })));
@@ -71,16 +90,48 @@ export default function CalendarPage() {
     void load();
   }, [queryString]);
 
+  const patientStep = useMemo(() => {
+    if (role !== "PATIENT") return null;
+    return resolvePatientNextStep({ isGuest, appointments, threads: [] });
+  }, [role, isGuest, appointments]);
+
   return (
     <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"]}>
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-900">Calendar</h1>
-        <p className="mt-1 text-sm text-slate-500">Month, week, day, and list views with filters</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {role === "PATIENT"
+            ? "View your visits. To request a new appointment, message the clinic."
+            : "Month, week, day, and list views with filters"}
+        </p>
       </div>
+
+      {patientStep ? <WhatsNextCard step={patientStep} className="mb-6" compact /> : null}
+
+      {role === "PATIENT" && !loading && appointments.length === 0 ? (
+        <div className="mb-6 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No visits in this range.{" "}
+          <Link href={VISIT_REQUEST_DRAFT_PATH} className="font-medium text-brand-700 underline">
+            Request a visit
+          </Link>{" "}
+          or open the{" "}
+          <Link href="/patient/care-guide" className="font-medium text-brand-700 underline">
+            Care Guide
+          </Link>
+          .
+        </div>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
         {Object.entries(APPOINTMENT_CATEGORY_COLORS).map(([cat, colors]) => (
-          <span key={cat} className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium", colors.bg, colors.text)}>
+          <span
+            key={cat}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+              colors.bg,
+              colors.text
+            )}
+          >
             <span className={cn("h-1.5 w-1.5 rounded-full", colors.dot)} />
             {cat.replace("_", " ")}
           </span>

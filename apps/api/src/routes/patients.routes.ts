@@ -5,7 +5,8 @@ import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
 import { enrichAuth } from "../middleware/enrich-auth";
-import { canManagePatients } from "../lib/permissions";
+import { canManagePatients, isClinicOps } from "../lib/permissions";
+import { doctorAccessibleProfilesWhere } from "../lib/patient-access";
 
 export const patientsRouter = Router();
 
@@ -16,8 +17,18 @@ patientsRouter.get(
   asyncHandler(async (req, res) => {
     if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
 
+    const orgId = req.auth!.activeOrganizationId;
     const patients = await prisma.patient.findMany({
-      where: { organizationId: req.auth!.activeOrganizationId },
+      where:
+        req.auth!.role === "DOCTOR" && req.auth!.doctorProfileId
+          ? {
+              organizationId: orgId,
+              OR: [
+                { profile: doctorAccessibleProfilesWhere(req.auth!.doctorProfileId) },
+                { appointments: { some: { doctorId: req.auth!.doctorProfileId } } }
+              ]
+            }
+          : { organizationId: orgId },
       orderBy: { createdAt: "desc" }
     });
 
@@ -28,7 +39,7 @@ patientsRouter.get(
 patientsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+    if (!isClinicOps(req.auth!)) throw new AppError("Forbidden", 403);
 
     const body = createPatientSchema.parse(req.body);
 
@@ -50,7 +61,17 @@ patientsRouter.get(
     const { id } = idParamSchema.parse(req.params);
 
     const patient = await prisma.patient.findFirst({
-      where: { id, organizationId: req.auth!.activeOrganizationId }
+      where:
+        req.auth!.role === "DOCTOR" && req.auth!.doctorProfileId
+          ? {
+              id,
+              organizationId: req.auth!.activeOrganizationId,
+              OR: [
+                { profile: doctorAccessibleProfilesWhere(req.auth!.doctorProfileId) },
+                { appointments: { some: { doctorId: req.auth!.doctorProfileId } } }
+              ]
+            }
+          : { id, organizationId: req.auth!.activeOrganizationId }
     });
     if (!patient) throw new AppError("Patient not found", 404);
 
@@ -61,7 +82,7 @@ patientsRouter.get(
 patientsRouter.put(
   "/:id",
   asyncHandler(async (req, res) => {
-    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+    if (!isClinicOps(req.auth!)) throw new AppError("Forbidden", 403);
 
     const { id } = idParamSchema.parse(req.params);
     const data = updatePatientSchema.parse(req.body);
@@ -82,7 +103,7 @@ patientsRouter.put(
 patientsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+    if (!isClinicOps(req.auth!)) throw new AppError("Forbidden", 403);
 
     const { id } = idParamSchema.parse(req.params);
 

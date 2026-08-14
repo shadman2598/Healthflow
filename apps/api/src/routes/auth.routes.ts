@@ -20,6 +20,7 @@ import {
 } from "../utils/auth";
 import { requireAuth } from "../middleware/require-auth";
 import { requireRoles } from "../middleware/require-role";
+import { requirePermissions } from "../middleware/require-permission";
 import { rateLimit } from "../middleware/rate-limit";
 import { writeAuditLog } from "../lib/audit";
 import { roleDashboardPath } from "../lib/permissions";
@@ -314,7 +315,7 @@ authRouter.get(
 authRouter.get(
   "/staff",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requirePermissions("staff:read"),
   asyncHandler(async (req, res) => {
     const orgId = req.auth!.activeOrganizationId;
     const users = await prisma.user.findMany({
@@ -348,7 +349,7 @@ authRouter.get(
 authRouter.post(
   "/staff",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requirePermissions("staff:manage"),
   asyncHandler(async (req, res) => {
     const body = createStaffSchema.parse(req.body);
     const targetOrganizationId = body.organizationId ?? req.auth!.activeOrganizationId;
@@ -398,7 +399,7 @@ authRouter.post(
 authRouter.get(
   "/invites",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requirePermissions("staff:manage"),
   asyncHandler(async (req, res) => {
     const invites = await prisma.roleInvite.findMany({
       where: { organizationId: req.auth!.activeOrganizationId },
@@ -411,7 +412,7 @@ authRouter.get(
 authRouter.post(
   "/invites",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requirePermissions("staff:manage"),
   asyncHandler(async (req, res) => {
     const body = createInviteSchema.parse(req.body);
     const orgId = req.auth!.activeOrganizationId;
@@ -455,7 +456,7 @@ authRouter.get(
 authRouter.post(
   "/select-clinic",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requirePermissions("clinic:switch_org"),
   asyncHandler(async (req, res) => {
     const body = selectClinicSchema.parse(req.body);
     const clinic = await prisma.organization.findUnique({ where: { id: body.organizationId } });

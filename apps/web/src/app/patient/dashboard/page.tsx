@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRolePage";
+import { WhatsNextCard } from "../../../components/healthflow/WhatsNextCard";
 import { DashboardCard } from "../../../components/healthflow/DashboardCard";
 import { AppointmentStatusBadge } from "../../../components/healthflow/AppointmentStatusBadge";
 import { KpiCard } from "../../../components/ui/KpiCard";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { IconCalendar, IconChat, IconClipboard, IconPlus, IconSearch } from "../../../components/ui/Icons";
 import { apiRequest } from "../../../lib/api";
+import { resolvePatientNextStep } from "../../../lib/patient-journey";
 import type { HealthFlowAppointment, MessageThread } from "../../../types/healthflow";
 
 function formatDateTime(iso: string): string {
@@ -18,21 +20,28 @@ function formatDateTime(iso: string): string {
 
 export default function PatientDashboardPage() {
   const [appointments, setAppointments] = useState<HealthFlowAppointment[]>([]);
+  const [allAppointments, setAllAppointments] = useState<HealthFlowAppointment[]>([]);
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     const load = async (): Promise<void> => {
       try {
         const { isGuestSession } = await import("../../../lib/guest-session");
         if (isGuestSession()) {
+          setIsGuest(true);
           setAppointments([]);
+          setAllAppointments([]);
           setThreads([]);
           return;
         }
         const now = new Date().toISOString();
-        const [apptRes, threadRes] = await Promise.all([
+        const [apptRes, allApptRes, threadRes] = await Promise.all([
           apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?from=${encodeURIComponent(now)}`).catch(() => ({
+            appointments: [] as HealthFlowAppointment[]
+          })),
+          apiRequest<{ appointments: HealthFlowAppointment[] }>("/appointments").catch(() => ({
             appointments: [] as HealthFlowAppointment[]
           })),
           apiRequest<{ threads: MessageThread[] }>("/messages/threads").catch(() => ({
@@ -40,7 +49,8 @@ export default function PatientDashboardPage() {
           }))
         ]);
         setAppointments(apptRes.appointments.slice(0, 5));
-        setThreads(threadRes.threads.slice(0, 3));
+        setAllAppointments(allApptRes.appointments);
+        setThreads(threadRes.threads.slice(0, 8));
       } finally {
         setLoading(false);
       }
@@ -49,20 +59,32 @@ export default function PatientDashboardPage() {
   }, []);
 
   const unreadMessages = threads.filter((t) => t.status === "UNREAD" || t.status === "PENDING").length;
+  const journeyStep = useMemo(
+    () =>
+      resolvePatientNextStep({
+        isGuest,
+        appointments: allAppointments.length ? allAppointments : appointments,
+        threads
+      }),
+    [isGuest, allAppointments, appointments, threads]
+  );
 
   return (
     <ProtectedRolePage allowedRoles={["PATIENT"]}>
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-900">Patient Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">Your care at a glance</p>
+        <p className="mt-1 text-sm text-slate-500">Your care journey — one clear next step</p>
       </div>
 
       {loading ? (
-        <div className="flex h-48 items-center justify-center">
+        <div className="flex h-48 items-center justify-center" role="status" aria-live="polite">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+          <span className="sr-only">Loading your care journey</span>
         </div>
       ) : (
         <>
+          <WhatsNextCard step={journeyStep} className="mb-8" />
+
           <div className="grid gap-6 sm:grid-cols-3">
             <KpiCard title="Upcoming Appointments" value={appointments.length} icon={<IconCalendar className="h-6 w-6" />} iconBg="bg-teal-50 text-teal-600" />
             <KpiCard title="Active Messages" value={threads.length} icon={<IconChat className="h-6 w-6" />} iconBg="bg-brand-50 text-brand-600" />
@@ -72,7 +94,11 @@ export default function PatientDashboardPage() {
           <div className="mt-8 grid gap-6 lg:grid-cols-2">
             <DashboardCard title="Upcoming Appointments" href="/calendar">
               {appointments.length === 0 ? (
-                <EmptyState icon={<IconCalendar className="h-10 w-10" />} title="No upcoming appointments" description="Schedule your next visit from the calendar." />
+                <EmptyState
+                  icon={<IconCalendar className="h-10 w-10" />}
+                  title="No upcoming appointments"
+                  description="Request a visit by messaging the clinic, or open Care Guide if you are unsure."
+                />
               ) : (
                 <div className="divide-y divide-slate-100 -mx-6 -my-6">
                   {appointments.map((appt) => (
@@ -93,10 +119,12 @@ export default function PatientDashboardPage() {
                 <EmptyState icon={<IconChat className="h-10 w-10" />} title="No messages yet" description="Start a conversation with your care team." />
               ) : (
                 <div className="divide-y divide-slate-100 -mx-6 -my-6">
-                  {threads.map((thread) => (
+                  {threads.slice(0, 3).map((thread) => (
                     <div key={thread.id} className="px-6 py-3.5">
                       <p className="text-sm font-medium text-slate-900">{thread.subject}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{thread.status.toLowerCase()} · {thread.priority.toLowerCase()}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {thread.status.toLowerCase()} · {thread.priority.toLowerCase()}
+                      </p>
                     </div>
                   ))}
                 </div>

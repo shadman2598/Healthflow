@@ -22,7 +22,10 @@ reminderLogsRouter.get(
       where: {
         organizationId: req.auth!.activeOrganizationId,
         ...(query.appointmentId ? { appointmentId: query.appointmentId } : {}),
-        ...(query.patientId ? { patientId: query.patientId } : {})
+        ...(query.patientId ? { patientId: query.patientId } : {}),
+        ...(req.auth!.role === "DOCTOR" && req.auth!.doctorProfileId
+          ? { appointment: { doctorId: req.auth!.doctorProfileId } }
+          : {})
       },
       include: {
         appointment: true,

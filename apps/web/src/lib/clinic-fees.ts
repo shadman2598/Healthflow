@@ -182,3 +182,19 @@ export const CLINIC_FEE_CATEGORIES: ClinicFeeCategory[] = [
 
 export const CLINIC_FEE_DISCLAIMER =
   "Fees are estimates for uninsured services and may change. Insured medically necessary visits are typically covered by your provincial health plan. Always confirm the final amount with reception before requesting a note, form, or procedure.";
+
+export function findClinicFee(id: string): ClinicFee | undefined {
+  for (const category of CLINIC_FEE_CATEGORIES) {
+    const fee = category.fees.find((item) => item.id === id);
+    if (fee) return fee;
+  }
+  return undefined;
+}
+
+/** Detect note/form/records language so we can show fee cues at request time. */
+export function looksLikeBillableAdminRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  return /\b(sick note|doctor'?s note|work note|school form|insurance form|disability|chart copy|medical records|fitness for duty|driver'?s medical|travel (letter|cancellation)|refill without)\b/.test(
+    t
+  );
+}

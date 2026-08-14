@@ -23,10 +23,16 @@ HealthFlow is a **clinic workflow platform** — not a diagnostic or treatment t
 |------|----------------|
 | Patient | Own profile, appointments, messages, reminders, resources |
 | Receptionist | Clinic patients, scheduling, messages, reminders (no admin settings) |
-| Doctor | Assigned patients, appointments, messages |
+| Doctor | Assigned patients + patients with appointments on their schedule; own appointments; assigned/unassigned message inbox |
 | Admin / Super Admin | Staff, patients, audit logs, system settings |
 
-Every API route and server action calls authorization helpers (`requireAuth`, `requireRole`, `canViewPatient`, etc.) before data access.
+Permission catalog lives in `@technovate/shared` (`rbac.ts`): granular permissions (`patient:read_assigned`, `audit:read`, …) mapped per role. **NURSE** and **BILLING** matrices are defined for future activation (not yet in Prisma `UserRole`). Product “Clinician” maps to `DOCTOR`.
+
+API authorization is enforced on the server (`requireAuth`, `requirePermissions`, `assertCanViewPatientProfile`, appointment ownership, org-scope checks). Frontend role/permission pages are UX only — never the security boundary.
+
+`requireAuth` reloads the user on each request: inactive (`isActive=false`) accounts are rejected even with a valid JWT; non-admins cannot forge another clinic via the active-org cookie.
+
+Clinic-wide reminder rules (`/reminder-rules`) require `reminder:manage_rules` (receptionist/admin).
 
 ## Data minimization
 

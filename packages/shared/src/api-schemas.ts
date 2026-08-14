@@ -94,7 +94,16 @@ export const patientReminderPrefsSchema = z.object({
   reminderPrefEmail: z.boolean().optional(),
   reminderPrefSms: z.boolean().optional(),
   reminderPrefApp: z.boolean().optional(),
-  reminderFrequency: z.enum(["DAY_BEFORE", "WEEKLY", "EVERY_DAY"]).optional()
+  reminderFrequency: z.enum(["DAY_BEFORE", "WEEKLY", "EVERY_DAY"]).optional(),
+  quietHoursStart: z.number().int().min(0).max(23).nullable().optional(),
+  quietHoursEnd: z.number().int().min(0).max(23).nullable().optional()
+});
+
+export const analyticsEventSchema = z.object({
+  name: z.string().min(1),
+  resourceType: z.string().optional(),
+  resourceId: z.string().optional(),
+  metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional()
 });
 
 export const updatePatientSchema = createPatientSchema.partial();
@@ -114,22 +123,26 @@ export const createAppointmentSchema = z.object({
   profileId: z.string().optional(),
   doctorId: z.string().optional(),
   scheduledAt: z.string().datetime(),
+  durationMinutes: z.number().int().min(5).max(240).optional(),
   reason: z.string().optional(),
   patientNotes: z.string().optional(),
   staffNotes: z.string().optional(),
   category: appointmentCategorySchema.default("CHECKUP"),
-  status: appointmentStatusSchema.default("SCHEDULED")
+  status: appointmentStatusSchema.default("SCHEDULED"),
+  idempotencyKey: z.string().min(8).max(120).optional()
 });
 
 export const updateAppointmentSchema = z.object({
   patientId: z.string().min(1).optional(),
   doctorId: z.string().nullable().optional(),
   scheduledAt: z.string().datetime().optional(),
+  durationMinutes: z.number().int().min(5).max(240).optional(),
   reason: z.string().nullable().optional(),
   patientNotes: z.string().nullable().optional(),
   staffNotes: z.string().nullable().optional(),
   category: appointmentCategorySchema.optional(),
-  status: appointmentStatusSchema.optional()
+  status: appointmentStatusSchema.optional(),
+  checkedInAt: z.string().datetime().nullable().optional()
 });
 
 export const updateReminderRuleSchema = z.object({ enabled: z.boolean() });

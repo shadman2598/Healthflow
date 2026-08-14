@@ -1,15 +1,20 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ProtectedRolePage } from "../../components/healthflow/ProtectedRolePage";
+import { TrustBanner } from "../../components/healthflow/TrustBanner";
+import { WhatsNextCard } from "../../components/healthflow/WhatsNextCard";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { IconChat, IconPlus, IconSend } from "../../components/ui/Icons";
 import { ApiError, apiRequest } from "../../lib/api";
+import { findClinicFee, looksLikeBillableAdminRequest } from "../../lib/clinic-fees";
+import { resolvePatientNextStep } from "../../lib/patient-journey";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../contexts/toast-context";
-import type { HealthFlowUser, Message, MessageThread } from "../../types/healthflow";
+import type { HealthFlowAppointment, HealthFlowUser, Message, MessageThread } from "../../types/healthflow";
 
 function threadStatusVariant(status: string): "success" | "warning" | "error" | "info" | "neutral" {
   switch (status) {
@@ -64,9 +69,20 @@ function MessagesContent() {
   const [creating, setCreating] = useState(false);
   const [doctors, setDoctors] = useState<{ id: string; firstName: string | null; lastName: string | null; doctorProfileId: string | null }[]>([]);
   const [patching, setPatching] = useState(false);
+  const [patientAppointments, setPatientAppointments] = useState<HealthFlowAppointment[]>([]);
+  const [guestMode, setGuestMode] = useState(false);
 
   const isPatient = user?.role === "PATIENT";
   const isStaff = user && user.role !== "PATIENT";
+
+  const patientJourney = useMemo(() => {
+    if (!isPatient) return null;
+    return resolvePatientNextStep({
+      isGuest: guestMode,
+      appointments: patientAppointments,
+      threads
+    });
+  }, [isPatient, guestMode, patientAppointments, threads]);
 
   const loadThreads = async (): Promise<void> => {
     const res = await apiRequest<{ threads: MessageThread[] }>("/messages/threads");
@@ -87,18 +103,25 @@ function MessagesContent() {
   useEffect(() => {
     const init = async (): Promise<void> => {
       try {
-        const { getGuestUser } = await import("../../lib/guest-session");
+        const { getGuestUser, isGuestSession } = await import("../../lib/guest-session");
         const guest = getGuestUser();
         if (guest) {
           setUser(guest);
+          setGuestMode(true);
           setThreads([]);
           return;
         }
+        setGuestMode(isGuestSession());
         const meRes = await apiRequest<{ user: HealthFlowUser }>("/auth/me");
         setUser(meRes.user);
         if (meRes.user.role !== "PATIENT") {
           const docRes = await apiRequest<{ doctors: { id: string; firstName: string; lastName: string }[] }>("/auth/doctors");
           setDoctors(docRes.doctors.map((d) => ({ id: d.id, firstName: d.firstName, lastName: d.lastName, doctorProfileId: d.id })));
+        } else {
+          const apptRes = await apiRequest<{ appointments: HealthFlowAppointment[] }>("/appointments").catch(() => ({
+            appointments: [] as HealthFlowAppointment[]
+          }));
+          setPatientAppointments(apptRes.appointments);
         }
         await loadThreads();
       } catch {
@@ -206,6 +229,9 @@ function MessagesContent() {
           </button>
         ) : null}
       </div>
+
+      {isPatient ? <TrustBanner context="messages" className="mb-6" /> : null}
+      {isPatient && patientJourney ? <WhatsNextCard step={patientJourney} className="mb-6" compact /> : null}
 
       {loading ? (
         <div className="flex h-96 items-center justify-center">
@@ -355,6 +381,27 @@ function MessagesContent() {
                 <label className="label">Message</label>
                 <textarea required rows={4} value={newBody} onChange={(e) => setNewBody(e.target.value)} className="w-full resize-none" />
               </div>
+              {looksLikeBillableAdminRequest(`${newSubject} ${newBody}`) ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  <p className="font-medium">Possible uninsured request</p>
+                  <p className="mt-1 text-amber-900/90">
+                    Notes and forms often have a clinic fee (e.g. sick note {findClinicFee("sick-note")?.cost ?? "$50"},
+                    school forms {findClinicFee("school-form")?.cost ?? "$40–$75"}). Confirm with reception before
+                    expecting completion.
+                  </p>
+                  <Link href="/resources?tab=fees" className="mt-2 inline-block font-medium text-amber-900 underline">
+                    View fee list
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Medically necessary visits are typically insured. Notes, forms, and some admin requests may have a{" "}
+                  <Link href="/resources?tab=fees" className="text-brand-700 underline">
+                    clinic fee
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={() => setShowNewThread(false)} className="btn-secondary">Cancel</button>

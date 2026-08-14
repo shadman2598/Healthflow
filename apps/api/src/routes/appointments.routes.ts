@@ -11,6 +11,8 @@ import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
 import { enrichAuth } from "../middleware/enrich-auth";
 import { canManageAppointments } from "../lib/permissions";
+import { assertDoctorOwnsAppointment } from "../lib/patient-access";
+import { findScheduleConflicts } from "../lib/scheduling";
 import { writeAuditLog } from "../lib/audit";
 import { sanitizeText } from "../lib/sanitize";
 
@@ -64,10 +66,31 @@ appointmentsRouter.post(
     if (!canManageAppointments(req.auth!)) throw new AppError("Forbidden", 403);
 
     const body = createAppointmentSchema.parse(req.body);
+    if (req.auth!.role === "DOCTOR") {
+      if (!req.auth!.doctorProfileId || body.doctorId !== req.auth!.doctorProfileId) {
+        throw new AppError("Doctors can only book appointments for themselves", 403);
+      }
+    }
+
     const patient = await prisma.patient.findFirst({
       where: { id: body.patientId, organizationId: req.auth!.activeOrganizationId }
     });
     if (!patient) throw new AppError("Patient not found", 404);
+
+    const scheduledAt = new Date(body.scheduledAt);
+    const durationMinutes = body.durationMinutes ?? 30;
+    const conflicts = await findScheduleConflicts({
+      organizationId: req.auth!.activeOrganizationId,
+      doctorId: body.doctorId,
+      scheduledAt,
+      durationMinutes
+    });
+    if (conflicts.length > 0) {
+      throw new AppError(
+        "Scheduling conflict: that clinician already has an overlapping appointment",
+        409
+      );
+    }
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -75,7 +98,8 @@ appointmentsRouter.post(
         patientId: body.patientId,
         profileId: body.profileId ?? patient.profileId,
         doctorId: body.doctorId,
-        scheduledAt: new Date(body.scheduledAt),
+        scheduledAt,
+        durationMinutes,
         reason: body.reason ? sanitizeText(body.reason, 500) : undefined,
         patientNotes: body.patientNotes ? sanitizeText(body.patientNotes) : undefined,
         staffNotes: body.staffNotes ? sanitizeText(body.staffNotes) : undefined,
@@ -113,6 +137,7 @@ appointmentsRouter.get(
     if (req.auth!.role === "PATIENT" && appointment.profile?.userId !== req.auth!.userId) {
       throw new AppError("Forbidden", 403);
     }
+    await assertDoctorOwnsAppointment(req.auth!, appointment);
 
     res.json({ appointment });
   })
@@ -161,17 +186,53 @@ appointmentsRouter.put(
       throw new AppError("Forbidden", 403);
     }
 
+    await assertDoctorOwnsAppointment(req.auth!, existing);
+    if (req.auth!.role === "DOCTOR" && body.doctorId && body.doctorId !== req.auth!.doctorProfileId) {
+      throw new AppError("Doctors cannot reassign appointments to other clinicians", 403);
+    }
+
+    const nextDoctorId = body.doctorId !== undefined ? body.doctorId : existing.doctorId;
+    const nextScheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : existing.scheduledAt;
+    const nextDuration = body.durationMinutes ?? existing.durationMinutes ?? 30;
+
+    if (body.scheduledAt || body.doctorId !== undefined || body.durationMinutes) {
+      const conflicts = await findScheduleConflicts({
+        organizationId: req.auth!.activeOrganizationId,
+        doctorId: nextDoctorId,
+        scheduledAt: nextScheduledAt,
+        durationMinutes: nextDuration,
+        excludeAppointmentId: id
+      });
+      if (conflicts.length > 0) {
+        throw new AppError(
+          "Scheduling conflict: that clinician already has an overlapping appointment",
+          409
+        );
+      }
+    }
+
+    const checkIn =
+      body.checkedInAt !== undefined
+        ? body.checkedInAt
+          ? new Date(body.checkedInAt)
+          : null
+        : body.status === "CONFIRMED" && !existing.checkedInAt
+          ? new Date()
+          : undefined;
+
     const appointment = await prisma.appointment.update({
       where: { id },
       data: {
         ...(body.patientId ? { patientId: body.patientId } : {}),
         ...(body.doctorId !== undefined ? { doctorId: body.doctorId } : {}),
         ...(body.scheduledAt ? { scheduledAt: new Date(body.scheduledAt) } : {}),
+        ...(body.durationMinutes ? { durationMinutes: body.durationMinutes } : {}),
         ...(body.reason !== undefined ? { reason: body.reason } : {}),
         ...(body.patientNotes !== undefined ? { patientNotes: body.patientNotes } : {}),
         ...(body.staffNotes !== undefined ? { staffNotes: body.staffNotes } : {}),
         ...(body.category ? { category: body.category } : {}),
-        ...(body.status ? { status: body.status } : {})
+        ...(body.status ? { status: body.status } : {}),
+        ...(checkIn !== undefined ? { checkedInAt: checkIn } : {})
       },
       include: { patient: true, doctor: true, profile: true }
     });
@@ -184,7 +245,7 @@ appointmentsRouter.put(
       targetType: "Appointment",
       targetId: id,
       ipAddress: req.ip,
-      metadata: { status: body.status }
+      metadata: { status: body.status, checkedIn: Boolean(checkIn) }
     });
 
     res.json({ appointment });
@@ -201,8 +262,20 @@ appointmentsRouter.delete(
       where: { id, organizationId: req.auth!.activeOrganizationId }
     });
     if (!existing) throw new AppError("Appointment not found", 404);
+    await assertDoctorOwnsAppointment(req.auth!, existing);
 
     await prisma.appointment.delete({ where: { id } });
+
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "APPOINTMENT_DELETED",
+      targetType: "Appointment",
+      targetId: id,
+      ipAddress: req.ip
+    });
+
     res.status(204).send();
   })
 );

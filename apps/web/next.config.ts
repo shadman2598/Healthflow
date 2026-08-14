@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Local/dev uses a dedicated dist dir; Pages build uses default `.next` then emits `out/`.
   distDir: isGithubPages ? ".next" : ".next-app",
-  transpilePackages: ["react-hook-form"],
+  transpilePackages: ["react-hook-form", "@technovate/shared"],
   ...(isGithubPages
     ? {
         output: "export" as const,

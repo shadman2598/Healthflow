@@ -24,6 +24,8 @@ remindersRouter.get(
       throw new AppError("Forbidden", 403);
     } else if (req.auth!.role === "PATIENT") {
       throw new AppError("Forbidden", 403);
+    } else if (req.auth!.role === "DOCTOR" && req.auth!.doctorProfileId) {
+      where.appointment = { doctorId: req.auth!.doctorProfileId };
     }
 
     const reminders = await prisma.reminder.findMany({
@@ -52,6 +54,12 @@ remindersRouter.post(
       include: { profile: true }
     });
     if (!appointment?.profileId) throw new AppError("Appointment not found", 404);
+    if (
+      req.auth!.role === "DOCTOR" &&
+      (!req.auth!.doctorProfileId || appointment.doctorId !== req.auth!.doctorProfileId)
+    ) {
+      throw new AppError("Forbidden", 403);
+    }
 
     const reminder = await prisma.reminder.create({
       data: {

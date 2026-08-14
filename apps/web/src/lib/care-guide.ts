@@ -168,10 +168,18 @@ const OUTCOMES: Record<UrgencyLevel, Omit<CareOutcome, "actions"> & { actionBuil
   schedule: {
     level: "schedule",
     title: "Book or wait for a clinic visit",
-    body: "A scheduled visit with your clinic is a reasonable next step. You can also message reception about availability.",
+    body: "A scheduled visit with your clinic is a reasonable next step. Message reception to request a time — online self-booking is not available yet.",
     actionBuilder: () => [
-      { label: "Open calendar", href: "/calendar", primary: true },
-      { label: "Message clinic", href: "/messages" },
+      {
+        label: "Request a visit",
+        href:
+          "/messages?draft=" +
+          encodeURIComponent(
+            "I'd like to request an appointment.\n\nPreferred timing:\nReason for visit:\n"
+          ),
+        primary: true
+      },
+      { label: "View calendar", href: "/calendar" },
       { label: "Prepare for a visit", href: "/patient/care-guide?tab=prep" }
     ]
   },

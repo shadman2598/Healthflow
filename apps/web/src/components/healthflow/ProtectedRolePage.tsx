@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { getGuestUser } from "../../lib/guest-session";
+import { roleHasAllPermissions, type Permission } from "../../lib/permissions";
 import { normalizeRole, roleDashboardPath, roleLoginPath } from "../../lib/role-config";
 import type { HealthFlowRole, HealthFlowUser } from "../../types/healthflow";
 import { RoleShell } from "./RoleShell";
@@ -11,6 +12,8 @@ import { RoleShell } from "./RoleShell";
 type ProtectedRolePageProps = {
   children: React.ReactNode;
   allowedRoles: HealthFlowRole[];
+  /** Optional granular UX gate — API still enforces the real boundary. */
+  requiredPermissions?: Permission[];
 };
 
 function roleAllowed(userRole: HealthFlowRole, allowed: HealthFlowRole[]): boolean {
@@ -19,7 +22,11 @@ function roleAllowed(userRole: HealthFlowRole, allowed: HealthFlowRole[]): boole
   return false;
 }
 
-export function ProtectedRolePage({ children, allowedRoles }: ProtectedRolePageProps) {
+export function ProtectedRolePage({
+  children,
+  allowedRoles,
+  requiredPermissions
+}: ProtectedRolePageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<HealthFlowUser | null>(null);
@@ -27,13 +34,18 @@ export function ProtectedRolePage({ children, allowedRoles }: ProtectedRolePageP
   const [denied, setDenied] = useState(false);
 
   const allowedKey = allowedRoles.join(",");
+  const permKey = (requiredPermissions ?? []).join(",");
 
   useEffect(() => {
     let active = true;
     const verify = async (): Promise<void> => {
       const guest = getGuestUser();
       if (guest) {
-        if (!roleAllowed(guest.role, allowedRoles)) {
+        if (
+          !roleAllowed(guest.role, allowedRoles) ||
+          (requiredPermissions?.length &&
+            !roleHasAllPermissions(guest.role, requiredPermissions))
+        ) {
           if (active) {
             setDenied(true);
             setReady(true);
@@ -51,7 +63,11 @@ export function ProtectedRolePage({ children, allowedRoles }: ProtectedRolePageP
       try {
         const res = await apiRequest<{ user: HealthFlowUser }>("/auth/me");
         if (!active) return;
-        if (!roleAllowed(res.user.role, allowedRoles)) {
+        if (
+          !roleAllowed(res.user.role, allowedRoles) ||
+          (requiredPermissions?.length &&
+            !roleHasAllPermissions(res.user.role, requiredPermissions))
+        ) {
           setDenied(true);
           setReady(true);
           router.replace(roleDashboardPath(res.user.role));
@@ -71,7 +87,7 @@ export function ProtectedRolePage({ children, allowedRoles }: ProtectedRolePageP
     return () => {
       active = false;
     };
-  }, [allowedKey, allowedRoles, pathname, router]);
+  }, [allowedKey, allowedRoles, permKey, pathname, requiredPermissions, router]);
 
   if (!ready) {
     return (

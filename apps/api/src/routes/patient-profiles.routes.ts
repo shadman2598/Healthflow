@@ -11,7 +11,9 @@ import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
 import { enrichAuth } from "../middleware/enrich-auth";
-import { canManagePatients, canViewPatient } from "../lib/permissions";
+import { canManagePatients, isClinicOps, authHasPermission } from "../lib/permissions";
+import { assertCanViewPatientProfile, doctorAccessibleProfilesWhere } from "../lib/patient-access";
+import { assertSameOrganization } from "../lib/org-scope";
 import { maskHealthcareNumber, sanitizeText } from "../lib/sanitize";
 import { writeAuditLog } from "../lib/audit";
 
@@ -32,8 +34,13 @@ patientProfilesRouter.get(
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - 12);
 
+    const doctorScope =
+      req.auth!.role === "DOCTOR" && req.auth!.doctorProfileId
+        ? doctorAccessibleProfilesWhere(req.auth!.doctorProfileId)
+        : {};
+
     const profiles = await prisma.patientProfile.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, ...doctorScope },
       include: {
         appointments: {
           where: { status: "COMPLETED" },
@@ -93,17 +100,24 @@ patientProfilesRouter.get(
 
     const where = {
       organizationId: orgId,
-      ...(query.q
-        ? {
-            OR: [
-              { firstName: { contains: query.q, mode: "insensitive" as const } },
-              { lastName: { contains: query.q, mode: "insensitive" as const } },
-              { email: { contains: query.q, mode: "insensitive" as const } },
-              { phone: { contains: query.q } },
-              { healthcareNumber: { contains: query.q } }
+      AND: [
+        ...(req.auth!.role === "DOCTOR" && req.auth!.doctorProfileId
+          ? [doctorAccessibleProfilesWhere(req.auth!.doctorProfileId)]
+          : []),
+        ...(query.q
+          ? [
+              {
+                OR: [
+                  { firstName: { contains: query.q, mode: "insensitive" as const } },
+                  { lastName: { contains: query.q, mode: "insensitive" as const } },
+                  { email: { contains: query.q, mode: "insensitive" as const } },
+                  { phone: { contains: query.q } },
+                  { healthcareNumber: { contains: query.q } }
+                ]
+              }
             ]
-          }
-        : {})
+          : [])
+      ]
     };
 
     const profiles = await prisma.patientProfile.findMany({
@@ -166,7 +180,7 @@ patientProfilesRouter.get(
 patientProfilesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    if (!canManagePatients(req.auth!)) throw new AppError("Forbidden", 403);
+    if (!isClinicOps(req.auth!)) throw new AppError("Forbidden", 403);
 
     const body = createPatientProfileSchema.parse(req.body);
     const orgId = req.auth!.activeOrganizationId;
@@ -229,7 +243,7 @@ patientProfilesRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
-    if (!canViewPatient(req.auth!, id)) throw new AppError("Forbidden", 403);
+    await assertCanViewPatientProfile(req.auth!, id);
 
     const profile = await prisma.patientProfile.findFirst({
       where: { id, organizationId: req.auth!.activeOrganizationId },
@@ -240,6 +254,7 @@ patientProfilesRouter.get(
       }
     });
     if (!profile) throw new AppError("Patient not found", 404);
+    assertSameOrganization(req.auth!, profile.organizationId);
 
     await writeAuditLog({
       organizationId: req.auth!.activeOrganizationId,
@@ -252,11 +267,13 @@ patientProfilesRouter.get(
     });
 
     const isStaff = req.auth!.role !== "PATIENT";
+    const canReveal = authHasPermission(req.auth!, "patient:reveal_hcn");
     res.json({
       profile: {
         ...profile,
         healthcareNumber: maskHealthcareNumber(profile.healthcareNumber),
-        internalNotes: isStaff ? profile.internalNotes : undefined
+        internalNotes: isStaff ? profile.internalNotes : undefined,
+        canRevealHealthcareNumber: canReveal
       }
     });
   })
@@ -266,7 +283,8 @@ patientProfilesRouter.post(
   "/:id/reveal-hcn",
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
-    if (!canViewPatient(req.auth!, id)) throw new AppError("Forbidden", 403);
+    await assertCanViewPatientProfile(req.auth!, id);
+    if (!authHasPermission(req.auth!, "patient:reveal_hcn")) throw new AppError("Forbidden", 403);
 
     const profile = await prisma.patientProfile.findFirst({
       where: { id, organizationId: req.auth!.activeOrganizationId }
@@ -292,11 +310,14 @@ patientProfilesRouter.put(
   asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
     const auth = req.auth!;
-    const isPatientSelf =
-      auth.role === "PATIENT" && (auth.patientProfileId === id || canViewPatient(auth, id));
+    const isPatientSelf = auth.role === "PATIENT" && auth.patientProfileId === id;
 
     if (!canManagePatients(auth) && !isPatientSelf) {
       throw new AppError("Forbidden", 403);
+    }
+
+    if (auth.role === "DOCTOR") {
+      await assertCanViewPatientProfile(auth, id);
     }
 
     const existing = await prisma.patientProfile.findFirst({

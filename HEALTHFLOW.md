@@ -125,18 +125,37 @@ SECURITY.md     Privacy & security decisions
 
 See [SECURITY.md](./SECURITY.md) for RBAC rules, audit logging, consent, rate limiting, and data handling.
 
+## Product philosophy (Prompt 49)
+
+HealthFlow is a **clinic Healthcare Operating System** — coordinating patient, receptionist, and clinician around one care journey. North-star metric: **minutes of unnecessary healthcare work eliminated per day**.
+
+AI is bounded to administrative assistance only (`packages/shared/src/ai-safety.ts`). Interop starts with FHIR-shaped export adapters (`/interop/fhir/*`), not a vendor lock-in.
+
+## Recently landed capabilities (prompts 33–48)
+
+| Area | Surface |
+|------|---------|
+| Patient next step | Dashboard / appointments / messages / calendar WhatsNext |
+| Front Desk OS | `/receptionist/dashboard` queue + check-in |
+| Clinician cockpit | `/doctor/cockpit` who/why/provenance |
+| Scheduling engine | Overlap conflict checks on create/update |
+| Notifications | Quiet hours + channel/frequency prefs |
+| Interop | FHIR Patient & Appointment export |
+| Analytics | `/analytics/events` → audit trail |
+| Quality / security review | Canvases: quality gate + security audit |
+
 ## Future roadmap
 
 - Real SMS via Twilio
 - Google Maps API for resource finder
-- EHR/EMR integrations
-- Digital intake forms
-- AI message summarization & triage suggestions (non-diagnostic)
-- Patient check-in kiosk
-- Doctor note assistance
+- EHR/EMR connectors behind FHIR adapters
+- Digital intake forms with provenance
+- AI message summarization (human-reviewed, non-diagnostic)
+- Patient self-book against slot inventory
 - Secure file uploads
 - Production MFA (TOTP/WebAuthn)
 - Field-level encryption for healthcare numbers
+- Collapse legacy `Patient` + `PatientProfile` dual models
 
 ## Legacy Technovate routes
 

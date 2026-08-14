@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { clearGuestSession, getGuestUser, isGuestSession } from "../../lib/guest-session";
+import { roleHasPermission } from "../../lib/permissions";
 import { normalizeRole, ROLE_NAV, type NavIconKey } from "../../lib/role-config";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../contexts/toast-context";
@@ -23,6 +24,13 @@ import {
   IconShield,
   IconUsers
 } from "../ui/Icons";
+
+const NAV_PERMISSION: Partial<Record<string, Parameters<typeof roleHasPermission>[1]>> = {
+  "/admin/audit-logs": "audit:read",
+  "/admin/staff": "staff:manage",
+  "/admin/settings": "clinic:settings",
+  "/settings/reminders": "reminder:manage_rules"
+};
 
 const iconMap: Record<NavIconKey, React.ComponentType<{ className?: string }>> = {
   dashboard: IconDashboard,
@@ -100,7 +108,12 @@ export function RoleShell({ children }: RoleShellProps) {
   };
 
   const navRole = user ? normalizeRole(user.role) : "PATIENT";
-  const navItems = ROLE_NAV[navRole];
+  const navItems = ROLE_NAV[navRole].filter((item) => {
+    const needed = NAV_PERMISSION[item.href];
+    if (!needed || !user) return true;
+    return roleHasPermission(user.role, needed);
+  });
+  const canSwitchClinic = user ? roleHasPermission(user.role, "clinic:switch_org") : false;
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const displayName =
     user?.patientProfile
@@ -150,7 +163,7 @@ export function RoleShell({ children }: RoleShellProps) {
         </nav>
 
         <div className="border-t border-slate-100 px-3 py-3">
-          {(user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") && clinics.length > 1 ? (
+          {canSwitchClinic && clinics.length > 1 ? (
             <select
               className="mb-2 w-full text-xs"
               value={user.activeOrganizationId}

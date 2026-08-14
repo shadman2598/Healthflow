@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRolePage";
 import { SecureFieldReveal } from "../../../components/healthflow/SecureFieldReveal";
+import { TrustBanner } from "../../../components/healthflow/TrustBanner";
 import { ApiError, apiRequest } from "../../../lib/api";
 import { isGuestSession } from "../../../lib/guest-session";
 import { useToast } from "../../../contexts/toast-context";
@@ -111,6 +112,8 @@ export default function PatientProfilePage() {
         <h1 className="text-2xl font-semibold text-slate-900">Profile</h1>
         <p className="mt-1 text-sm text-slate-500">Your contact information and reminder preferences</p>
       </div>
+
+      <TrustBanner context="profile" className="mb-6" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card p-6">

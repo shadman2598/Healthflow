@@ -17,6 +17,8 @@ type PatientProfile = {
   reminderPrefSms?: boolean;
   reminderPrefApp?: boolean;
   reminderFrequency?: ReminderFrequency;
+  quietHoursStart?: number | null;
+  quietHoursEnd?: number | null;
 };
 
 const FREQUENCY_OPTIONS: {
@@ -88,10 +90,16 @@ export default function PatientRemindersPage() {
           reminderPrefEmail: profile.reminderPrefEmail,
           reminderPrefSms: profile.reminderPrefSms,
           reminderPrefApp: profile.reminderPrefApp,
-          reminderFrequency: profile.reminderFrequency ?? "DAY_BEFORE"
+          reminderFrequency: profile.reminderFrequency ?? "DAY_BEFORE",
+          quietHoursStart: profile.quietHoursStart ?? null,
+          quietHoursEnd: profile.quietHoursEnd ?? null
         }
       });
       showToast("Reminder settings saved");
+      void apiRequest("/analytics/events", {
+        method: "POST",
+        body: { name: "reminder_preference_updated", resourceType: "PatientProfile", resourceId: profile.id }
+      }).catch(() => undefined);
     } catch (error) {
       showToast(error instanceof ApiError ? error.message : "Save failed", "error");
     } finally {
@@ -199,6 +207,53 @@ export default function PatientRemindersPage() {
                 onChange={(e) => setProfile({ ...profile, reminderPrefApp: e.target.checked })}
               />
               In-app notifications (placeholder)
+            </label>
+          </div>
+
+          <h3 className="mt-6 text-sm font-semibold text-slate-900">Quiet hours</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Suppress non-urgent reminders overnight. Leave blank to allow anytime.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <label className="text-sm text-slate-700">
+              Start
+              <select
+                className="ml-2"
+                value={profile.quietHoursStart ?? ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    quietHoursStart: e.target.value === "" ? null : Number(e.target.value)
+                  })
+                }
+              >
+                <option value="">Off</option>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, "0")}:00
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm text-slate-700">
+              End
+              <select
+                className="ml-2"
+                value={profile.quietHoursEnd ?? ""}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    quietHoursEnd: e.target.value === "" ? null : Number(e.target.value)
+                  })
+                }
+              >
+                <option value="">Off</option>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, "0")}:00
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
