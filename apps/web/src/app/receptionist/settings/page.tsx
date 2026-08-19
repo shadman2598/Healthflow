@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRolePage";
 import { apiRequest } from "../../../lib/api";
+import { getGuestUser } from "../../../lib/guest-session";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import type { HealthFlowUser } from "../../../types/healthflow";
 
@@ -10,6 +11,11 @@ export default function ReceptionistSettingsPage() {
   const [user, setUser] = useState<HealthFlowUser | null>(null);
 
   useEffect(() => {
+    const guest = getGuestUser();
+    if (guest) {
+      setUser(guest);
+      return;
+    }
     apiRequest<{ user: HealthFlowUser }>("/auth/me").then((res) => setUser(res.user));
   }, []);
 

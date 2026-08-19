@@ -6,6 +6,7 @@ import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRoleP
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { IconActivity, IconShield } from "../../../components/ui/Icons";
 import { ApiError, apiRequest } from "../../../lib/api";
+import { isGuestSession } from "../../../lib/guest-session";
 import { cn } from "../../../lib/utils";
 import { useToast } from "../../../contexts/toast-context";
 
@@ -20,6 +21,10 @@ export default function AdminAnalyticsPage() {
   const [tab, setTab] = useState<AudienceKey>("patient");
 
   useEffect(() => {
+    if (isGuestSession()) {
+      setLoading(false);
+      return;
+    }
     apiRequest<{ dashboard: AnalyticsDashboard }>("/analytics/dashboard?days=7")
       .then((res) => setDashboard(res.dashboard))
       .catch((error) => {

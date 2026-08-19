@@ -4,7 +4,9 @@ type TourLink = { href: string; title: string; description: string; badge?: stri
 
 const entry: TourLink[] = [
   { href: "/", title: "Who are you?", description: "Role picker, guest browse, demo credentials.", badge: "Start" },
-  { href: "/?guest=1", title: "Continue as guest", description: "Opens patient portal without an account.", badge: "Guest" },
+  { href: "/?guest=patient", title: "Guest: Patient", description: "Look around every patient page. No account." },
+  { href: "/?guest=doctor", title: "Guest: Doctor", description: "Look around every doctor page. No account." },
+  { href: "/?guest=receptionist", title: "Guest: Receptionist", description: "Look around every receptionist page. No account." },
   { href: "/login/patient", title: "Patient sign in", description: "Demo: patient1@healthflow.demo" },
   { href: "/login/doctor", title: "Doctor sign in", description: "Demo: doctor1@healthflow.demo" },
   { href: "/login/receptionist", title: "Receptionist sign in", description: "Demo: receptionist1@healthflow.demo" },

@@ -6,6 +6,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { IconAlertTriangle } from "../../components/ui/Icons";
 import { apiRequest } from "../../lib/api";
+import { isGuestSession } from "../../lib/guest-session";
 import type { OverdueCheckup } from "../../types/healthflow";
 
 function formatDate(iso: string): string {
@@ -17,6 +18,11 @@ export default function OverdueCheckupsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isGuestSession()) {
+      setOverdue([]);
+      setLoading(false);
+      return;
+    }
     apiRequest<{ overdue: OverdueCheckup[] }>("/patient-profiles/overdue/checkups")
       .then((res) => setOverdue(res.overdue))
       .finally(() => setLoading(false));

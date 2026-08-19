@@ -5,6 +5,7 @@ import { ProtectedRolePage } from "../../components/healthflow/ProtectedRolePage
 import { EmptyState } from "../../components/ui/EmptyState";
 import { IconBell } from "../../components/ui/Icons";
 import { ApiError, apiRequest } from "../../lib/api";
+import { isGuestSession } from "../../lib/guest-session";
 import { useToast } from "../../contexts/toast-context";
 import type { HealthFlowAppointment } from "../../types/healthflow";
 
@@ -43,6 +44,11 @@ export default function RemindersPage() {
   });
 
   const load = async (): Promise<void> => {
+    if (isGuestSession()) {
+      setReminders([]);
+      setAppointments([]);
+      return;
+    }
     const [remRes, apptRes] = await Promise.all([
       apiRequest<{ reminders: Reminder[] }>("/reminders"),
       apiRequest<{ appointments: HealthFlowAppointment[] }>(

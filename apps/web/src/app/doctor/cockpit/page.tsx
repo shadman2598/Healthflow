@@ -135,6 +135,13 @@ function DoctorCockpitContent() {
     const run = async (): Promise<void> => {
       setLoading(true);
       try {
+        const { isGuestSession } = await import("../../../lib/guest-session");
+        if (isGuestSession()) {
+          setAppointments([]);
+          setThreads([]);
+          setLoadError(null);
+          return;
+        }
         await apiRequest<{ user: HealthFlowUser }>("/auth/me");
         const { today, threads: inbox } = await loadToday();
         if (!active) return;

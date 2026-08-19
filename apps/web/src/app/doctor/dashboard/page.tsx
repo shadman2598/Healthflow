@@ -25,6 +25,13 @@ export default function DoctorDashboardPage() {
   useEffect(() => {
     const load = async (): Promise<void> => {
       try {
+        const { isGuestSession } = await import("../../../lib/guest-session");
+        if (isGuestSession()) {
+          setDoctorProfileId("guest-doctor");
+          setAppointments([]);
+          setThreads([]);
+          return;
+        }
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
         const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();

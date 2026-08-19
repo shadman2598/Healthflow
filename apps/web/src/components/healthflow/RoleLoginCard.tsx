@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, apiRequest } from "../../lib/api";
 import { roleDashboardPath } from "../../lib/role-config";
+import { startGuestSession } from "../../lib/guest-session";
 import { useToast } from "../../contexts/toast-context";
 import type { HealthFlowRole, HealthFlowUser } from "../../types/healthflow";
 import { IconArrowLeft, IconShield } from "../ui/Icons";
@@ -23,6 +24,7 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   useEffect(() => {
     apiRequest<{ user: HealthFlowUser }>("/auth/me")
@@ -61,6 +63,13 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
     } finally {
       setLoading(false);
     }
+  };
+
+  const continueAsGuest = (): void => {
+    if (role !== "PATIENT" && role !== "DOCTOR" && role !== "RECEPTIONIST") return;
+    setGuestLoading(true);
+    startGuestSession(role);
+    router.replace(roleDashboardPath(role));
   };
 
   const signupLink =
@@ -163,6 +172,17 @@ export function RoleLoginCard({ role, title, subtitle, defaultEmail = "" }: Role
               )}
             </button>
           </form>
+
+          {role === "PATIENT" || role === "DOCTOR" || role === "RECEPTIONIST" ? (
+            <button
+              type="button"
+              onClick={continueAsGuest}
+              disabled={guestLoading}
+              className="btn-secondary mt-4 w-full"
+            >
+              {guestLoading ? "Opening…" : "Continue as guest"}
+            </button>
+          ) : null}
 
           {role === "PATIENT" ? (
             <p className="mt-6 text-center text-sm text-slate-500">

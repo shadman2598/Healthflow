@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PatientTable, type PatientRow } from "../../components/healthflow/PatientTable";
 import { IconPlus } from "../../components/ui/Icons";
 import { ApiError, apiRequest } from "../../lib/api";
+import { isGuestSession } from "../../lib/guest-session";
 import { useToast } from "../../contexts/toast-context";
 
 export default function HealthFlowPatientsPage() {
@@ -15,6 +16,11 @@ export default function HealthFlowPatientsPage() {
   const [sort, setSort] = useState("name");
 
   const load = useCallback(async (): Promise<void> => {
+    if (isGuestSession()) {
+      setPatients([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();

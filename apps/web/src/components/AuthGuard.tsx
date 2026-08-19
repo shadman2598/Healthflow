@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiRequest } from "../lib/api";
-import { isGuestSession } from "../lib/guest-session";
+import { getGuestUser, isGuestSession } from "../lib/guest-session";
 import { roleDashboardPath } from "../lib/role-config";
 import type { HealthFlowRole, HealthFlowUser } from "../types/healthflow";
 
@@ -25,11 +25,12 @@ export function AuthGuard({ children, staffOnly = false }: AuthGuardProps) {
     let active = true;
     const verify = async (): Promise<void> => {
       if (isGuestSession()) {
-        if (staffOnly) {
+        const guest = getGuestUser();
+        if (staffOnly && guest && !STAFF_ROLES.includes(guest.role)) {
           if (active) {
             setAllowed(false);
             setReady(true);
-            router.replace("/patient/dashboard");
+            router.replace(roleDashboardPath(guest.role));
           }
           return;
         }

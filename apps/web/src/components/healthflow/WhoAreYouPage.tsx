@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
-import { getGuestUser, startGuestSession } from "../../lib/guest-session";
+import { parseGuestRole, startGuestSession, type GuestRole } from "../../lib/guest-session";
 import { roleDashboardPath } from "../../lib/role-config";
 import type { HealthFlowUser } from "../../types/healthflow";
 import { COMBINED_MECHANISMS, studyDesignRule } from "@technovate/shared";
@@ -13,40 +13,44 @@ import { cn } from "../../lib/utils";
 import { DemoAccessGuide } from "./DemoAccessGuide";
 
 type RoleOption = {
-  id: "patient" | "doctor" | "receptionist";
+  id: GuestRole;
   label: string;
   description: string;
   signInHref: string;
   signUpHref: string;
+  guestHref: string;
   bubbleClass: string;
   letterClass: string;
 };
 
 const ROLES: RoleOption[] = [
   {
-    id: "patient",
+    id: "PATIENT",
     label: "Patient",
     description: "Book a visit in a few taps. See your visits. Ask Helper if you get stuck.",
     signInHref: "/login/patient",
     signUpHref: "/signup/patient",
+    guestHref: "/patient/dashboard",
     bubbleClass: "from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shadow-teal-500/25",
     letterClass: "text-teal-50"
   },
   {
-    id: "doctor",
+    id: "DOCTOR",
     label: "Doctor",
     description: "Review your schedule, assigned patients, and patient messages.",
     signInHref: "/login/doctor",
     signUpHref: "/signup/doctor",
+    guestHref: "/doctor/dashboard",
     bubbleClass: "from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-brand-600/25",
     letterClass: "text-brand-50"
   },
   {
-    id: "receptionist",
+    id: "RECEPTIONIST",
     label: "Receptionist",
     description: "Manage patients, scheduling, messages, and clinic reminders.",
     signInHref: "/login/receptionist",
     signUpHref: "/signup/receptionist",
+    guestHref: "/receptionist/dashboard",
     bubbleClass: "from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 shadow-slate-600/25",
     letterClass: "text-slate-50"
   }
@@ -54,17 +58,13 @@ const ROLES: RoleOption[] = [
 
 export function WhoAreYouPage() {
   const router = useRouter();
-  const [startingGuest, setStartingGuest] = useState(false);
+  const [startingGuest, setStartingGuest] = useState<GuestRole | null>(null);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("guest") === "1") {
-      startGuestSession();
-      router.replace("/patient/book");
-      return;
-    }
-    const guest = getGuestUser();
-    if (guest) {
-      router.replace(guest.redirectTo ?? "/patient/dashboard");
+    const guestRole = parseGuestRole(new URLSearchParams(window.location.search).get("guest"));
+    if (guestRole) {
+      startGuestSession(guestRole);
+      router.replace(roleDashboardPath(guestRole));
       return;
     }
     apiRequest<{ user: HealthFlowUser }>("/auth/me")
@@ -72,10 +72,10 @@ export function WhoAreYouPage() {
       .catch(() => {});
   }, [router]);
 
-  const continueAsGuest = (): void => {
-    setStartingGuest(true);
-    startGuestSession();
-    router.replace("/patient/book");
+  const continueAsGuest = (role: GuestRole, href: string): void => {
+    setStartingGuest(role);
+    startGuestSession(role);
+    router.replace(href);
   };
 
   return (
@@ -102,18 +102,8 @@ export function WhoAreYouPage() {
           </p>
         </div>
 
-        <div className="mb-8 flex justify-center">
-          <button
-            type="button"
-            onClick={continueAsGuest}
-            disabled={startingGuest}
-            className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
-          >
-            {startingGuest ? "Opening…" : "Look around first (no account)"}
-          </button>
-        </div>
         <p className="mb-10 text-center text-base text-slate-600">
-          You will see three big buttons: Book a visit, My visits, and Help. A real visit still needs an account.
+          Pick a door. Continue as guest to look around that role’s pages. Live clinic data still needs a real account.
         </p>
 
         <div className="grid gap-6 sm:grid-cols-3">
@@ -138,9 +128,17 @@ export function WhoAreYouPage() {
               <p className="mt-4 text-sm leading-relaxed text-white/80">{role.description}</p>
 
               <div className="mt-8 flex w-full flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => continueAsGuest(role.id, role.guestHref)}
+                  disabled={startingGuest !== null}
+                  className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-900 shadow-sm transition hover:bg-white/90 disabled:opacity-60"
+                >
+                  {startingGuest === role.id ? "Opening…" : "Continue as guest"}
+                </button>
                 <Link
                   href={role.signInHref}
-                  className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-bold uppercase tracking-wide text-slate-900 shadow-sm transition hover:bg-white/90"
+                  className="inline-flex items-center justify-center rounded-xl border-2 border-white/40 bg-white/10 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white/20"
                 >
                   Sign In
                 </Link>

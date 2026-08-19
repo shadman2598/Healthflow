@@ -18,6 +18,7 @@ import { NextActionsPanel } from "../../../components/healthflow/NextActionsPane
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { IconCalendar, IconChat, IconUsers } from "../../../components/ui/Icons";
 import { ApiError, apiRequest } from "../../../lib/api";
+import { isGuestSession } from "../../../lib/guest-session";
 import { cn } from "../../../lib/utils";
 import { useToast } from "../../../contexts/toast-context";
 import type { HealthFlowAppointment, MessageThread, OverdueCheckup } from "../../../types/healthflow";
@@ -66,6 +67,10 @@ export default function ReceptionistDashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (isGuestSession()) {
+      setLoading(false);
+      return;
+    }
     void load()
       .catch(() => {
         setLoadError("Couldn’t refresh the front desk board. Appointments were not changed — retry.");
