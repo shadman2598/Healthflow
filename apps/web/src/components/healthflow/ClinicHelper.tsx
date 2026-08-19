@@ -32,7 +32,7 @@ export function ClinicHelper({ compact = false }: { compact?: boolean }) {
     return (
       <button
         type="button"
-        className="fixed bottom-4 right-4 z-40 flex min-h-14 min-w-14 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-semibold text-white"
+        className="clinic-helper-fab flex min-h-14 items-center gap-2 rounded-full bg-teal-600 px-4 text-sm font-semibold text-white"
         onClick={() => setOpen(true)}
         aria-label="Open clinic helper"
       >
@@ -45,7 +45,7 @@ export function ClinicHelper({ compact = false }: { compact?: boolean }) {
     <section
       className={cn(
         "rounded-2xl border border-teal-200 bg-teal-50 p-4",
-        compact && "fixed bottom-4 right-4 z-40 w-[min(100%-2rem,22rem)] shadow-none"
+        compact && "clinic-helper-panel shadow-none"
       )}
       aria-label={`${HELPER_NAME} clinic helper`}
     >

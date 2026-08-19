@@ -119,6 +119,18 @@ html[data-easy-mode="on"] textarea {
   font-size: 1.125rem;
 }
 
+.clinic-helper-fab,
+.clinic-helper-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+}
+
+.clinic-helper-panel {
+  width: min(calc(100% - 2rem), 22rem);
+}
+
 .helper-mouth {
   animation: helper-talk 0.35s ease-in-out infinite alternate;
 }

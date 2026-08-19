@@ -97,10 +97,10 @@ export default function PatientDashboardPage() {
       </div>
 
       <div className="mb-8 grid gap-3 sm:grid-cols-3">
-        <Link href="/patient/book" className="rounded-2xl bg-teal-700 px-4 py-6 text-center text-xl font-semibold text-white">
+        <Link href="/patient/book" className="rounded-2xl bg-teal-600 px-4 py-6 text-center text-xl font-semibold text-white">
           Book a visit
         </Link>
-        <Link href="/patient/visits" className="rounded-2xl bg-slate-800 px-4 py-6 text-center text-xl font-semibold text-white">
+        <Link href="/patient/visits" className="rounded-2xl bg-slate-900 px-4 py-6 text-center text-xl font-semibold text-white">
           My visits
         </Link>
         <Link href="/faq" className="rounded-2xl border-2 border-slate-300 bg-white px-4 py-6 text-center text-xl font-semibold text-slate-900">

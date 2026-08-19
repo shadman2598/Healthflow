@@ -28,9 +28,11 @@ export function isStaticSiteWithoutApi(): boolean {
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const base = apiRequestBase();
   if (!base) {
-    throw new ApiError(
-      "API is not available on this static site. Use guest browse, or run the local preview with an API.",
-      503
+    return Promise.reject(
+      new ApiError(
+        "API is not available on this static site. Use guest browse, or run the local preview with an API.",
+        503
+      )
     );
   }
 

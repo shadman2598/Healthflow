@@ -68,7 +68,10 @@ export function WhoAreYouPage() {
       return;
     }
     apiRequest<{ user: HealthFlowUser }>("/auth/me")
-      .then((res) => router.replace(res.user.redirectTo ?? roleDashboardPath(res.user.role)))
+      .then((res) => {
+        const path = res.user.redirectTo ?? roleDashboardPath(res.user.role);
+        router.replace(path);
+      })
       .catch(() => {});
   }, [router]);
 

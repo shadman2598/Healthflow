@@ -1,5 +1,4 @@
 import type { HealthFlowUser } from "../types/healthflow";
-import { roleDashboardPath } from "./role-config";
 
 export const GUEST_STORAGE_KEY = "healthflow.guest";
 
@@ -11,6 +10,12 @@ const GUEST_ORG = {
   createdAt: new Date(0).toISOString()
 };
 
+function guestDashboardPath(role: GuestRole): string {
+  if (role === "DOCTOR") return "/doctor/dashboard";
+  if (role === "RECEPTIONIST") return "/receptionist/dashboard";
+  return "/patient/dashboard";
+}
+
 function guestBase(role: GuestRole): Omit<HealthFlowUser, "patientProfile" | "doctorProfile" | "staffProfile"> {
   return {
     id: `guest-${role.toLowerCase()}`,
@@ -20,7 +25,7 @@ function guestBase(role: GuestRole): Omit<HealthFlowUser, "patientProfile" | "do
     organizationId: GUEST_ORG.id,
     activeOrganizationId: GUEST_ORG.id,
     organization: GUEST_ORG,
-    redirectTo: roleDashboardPath(role)
+    redirectTo: guestDashboardPath(role)
   };
 }
 
