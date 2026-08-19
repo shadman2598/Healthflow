@@ -54,6 +54,7 @@ describe("RBAC permission catalog", () => {
 
   it("grants patients only self-scoped capabilities", () => {
     expect(hasPermission("PATIENT", "patient:read_own")).toBe(true);
+    expect(hasPermission("PATIENT", "appointment:request_own")).toBe(true);
     expect(hasPermission("PATIENT", "patient:read_clinic")).toBe(false);
     expect(hasPermission("PATIENT", "audit:read")).toBe(false);
     expect(hasPermission("PATIENT", "reminder:manage_rules")).toBe(false);

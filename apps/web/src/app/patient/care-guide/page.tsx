@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  looksLikeMedicationQuery,
+  OPENFDA_DRUG_DISCLAIMER,
+  type DrugLabelSummary
+} from "@technovate/shared";
 import { ProtectedRolePage } from "../../../components/healthflow/ProtectedRolePage";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { IconCalendar, IconChat, IconCheckCircle, IconClipboard, IconSearch, IconShield } from "../../../components/ui/Icons";
@@ -22,6 +27,7 @@ import {
 import { CLINIC_FEE_CATEGORIES } from "../../../lib/clinic-fees";
 import { loadPrepProgress, savePrepProgress } from "../../../lib/patient-journey";
 import { apiRequest } from "../../../lib/api";
+import { searchOpenFdaDrugLabelsClient } from "../../../lib/public-integrations-client";
 import { cn } from "../../../lib/utils";
 import type { HealthFlowAppointment } from "../../../types/healthflow";
 
@@ -73,6 +79,9 @@ function CareGuideContent() {
   const [prepHydrated, setPrepHydrated] = useState(false);
 
   const [askQuery, setAskQuery] = useState("");
+  const [drugLabels, setDrugLabels] = useState<DrugLabelSummary[]>([]);
+  const [drugNote, setDrugNote] = useState<string | null>(null);
+  const [drugLoading, setDrugLoading] = useState(false);
   const feeHits = useMemo(() => feeAssistHits(), []);
   const askResults = useMemo(() => searchClinicAssistant(askQuery, feeHits), [askQuery, feeHits]);
 
@@ -80,6 +89,58 @@ function CareGuideContent() {
     const t = searchParams.get("tab") as TabId | null;
     if (t && ["guide", "prep", "ask"].includes(t)) setTab(t);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (tab !== "ask" || !looksLikeMedicationQuery(askQuery)) {
+      setDrugLabels([]);
+      setDrugNote(null);
+      setDrugLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        setDrugLoading(true);
+        try {
+          const { isGuestSession } = await import("../../../lib/guest-session");
+          if (isGuestSession()) {
+            const res = await searchOpenFdaDrugLabelsClient(askQuery.trim());
+            if (!cancelled) {
+              setDrugLabels(res.labels ?? []);
+              setDrugNote(res.disclaimer ?? res.integrationNote ?? OPENFDA_DRUG_DISCLAIMER);
+            }
+            return;
+          }
+          try {
+            const res = await apiRequest<{
+              labels: DrugLabelSummary[];
+              disclaimer?: string;
+              integrationNote?: string;
+            }>(`/resources/drug-labels?q=${encodeURIComponent(askQuery.trim())}`);
+            if (cancelled) return;
+            setDrugLabels(res.labels ?? []);
+            setDrugNote(res.disclaimer ?? res.integrationNote ?? OPENFDA_DRUG_DISCLAIMER);
+          } catch {
+            const res = await searchOpenFdaDrugLabelsClient(askQuery.trim());
+            if (cancelled) return;
+            setDrugLabels(res.labels ?? []);
+            setDrugNote(res.disclaimer ?? res.integrationNote ?? OPENFDA_DRUG_DISCLAIMER);
+          }
+        } catch {
+          if (!cancelled) {
+            setDrugLabels([]);
+            setDrugNote("Drug label lookup unavailable right now.");
+          }
+        } finally {
+          if (!cancelled) setDrugLoading(false);
+        }
+      })();
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [askQuery, tab]);
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -402,8 +463,8 @@ function CareGuideContent() {
                 <IconChat className="h-4 w-4" />
                 Open Messages with notes
               </Link>
-              <Link href="/patient/appointments" className="btn-secondary">
-                Appointment History
+              <Link href="/patient/visits" className="btn-secondary">
+                My visits
               </Link>
             </div>
           </div>
@@ -429,7 +490,7 @@ function CareGuideContent() {
                 id="care-ask-query"
                 type="search"
                 className="w-full min-h-[44px] rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-sm"
-                placeholder='Try “sick note”, “reschedule”, “pharmacy”, “privacy”…'
+                placeholder='Try “sick note”, “reschedule”, “advil”, “privacy”…'
                 value={askQuery}
                 onChange={(e) => setAskQuery(e.target.value)}
                 autoComplete="off"
@@ -437,9 +498,56 @@ function CareGuideContent() {
             </div>
           </div>
 
-          {askResults.length === 0 ? (
-            <EmptyState icon={<IconSearch className="h-10 w-10" />} title="No matches" description="Try a shorter keyword or browse FAQ." />
-          ) : (
+          {drugLoading ? (
+            <p className="text-sm text-slate-600" role="status">
+              Looking up educational drug label summaries…
+            </p>
+          ) : null}
+
+          {drugLabels.length > 0 ? (
+            <section className="space-y-3" aria-label="Educational drug label summaries">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Drug label reference (openFDA)
+              </p>
+              {drugLabels.map((label) => (
+                <div key={label.id} className="card border-amber-100 p-5">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {label.brandName ?? label.genericName ?? "Drug label"}
+                    {label.brandName && label.genericName ? (
+                      <span className="ml-2 font-normal text-slate-500">({label.genericName})</span>
+                    ) : null}
+                  </h3>
+                  {label.indicationsSummary ? (
+                    <p className="mt-2 text-sm text-slate-700">
+                      <span className="font-medium">Indications: </span>
+                      {label.indicationsSummary}
+                    </p>
+                  ) : null}
+                  {label.warningsSummary ? (
+                    <p className="mt-2 text-sm text-amber-950">
+                      <span className="font-medium">Warnings: </span>
+                      {label.warningsSummary}
+                    </p>
+                  ) : null}
+                  <a
+                    href={label.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex text-sm font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    View openFDA source →
+                  </a>
+                </div>
+              ))}
+              <p className="text-xs text-slate-600">{drugNote ?? OPENFDA_DRUG_DISCLAIMER}</p>
+            </section>
+          ) : drugNote && looksLikeMedicationQuery(askQuery) && !drugLoading ? (
+            <p className="text-xs text-slate-600">{drugNote}</p>
+          ) : null}
+
+          {askResults.length === 0 && drugLabels.length === 0 && !drugLoading ? (
+            <EmptyState icon={<IconSearch className="h-10 w-10" />} title="No matches" description="Try a shorter keyword, a medication name, or browse FAQ." />
+          ) : askResults.length > 0 ? (
             <div className="space-y-3">
               {askResults.map((hit) => (
                 <div key={hit.id} className="card p-5">
@@ -458,7 +566,7 @@ function CareGuideContent() {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       ) : null}
 

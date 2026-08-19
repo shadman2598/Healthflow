@@ -10,6 +10,8 @@ import { normalizeRole, ROLE_NAV, type NavIconKey } from "../../lib/role-config"
 import { cn } from "../../lib/utils";
 import { useToast } from "../../contexts/toast-context";
 import type { HealthFlowUser, Organization } from "../../types/healthflow";
+import { useEasyMode } from "./EasyModeProvider";
+import { ClinicHelper } from "./ClinicHelper";
 import { Avatar } from "../ui/Avatar";
 import {
   IconAlertTriangle,
@@ -107,6 +109,7 @@ export function RoleShell({ children }: RoleShellProps) {
     }
   };
 
+  const { easy, setUserToggle } = useEasyMode();
   const navRole = user ? normalizeRole(user.role) : "PATIENT";
   const navItems = ROLE_NAV[navRole].filter((item) => {
     const needed = NAV_PERMISSION[item.href];
@@ -211,14 +214,24 @@ export function RoleShell({ children }: RoleShellProps) {
             <p className="text-xs font-medium uppercase tracking-wider text-teal-700">HealthFlow</p>
             <p className="text-sm text-slate-600">
               {isGuestSession()
-                ? "Guest preview — browse features without an account"
+                ? "Look around. Sign in to save a real visit."
                 : user?.organization?.name ?? "Loading..."}
             </p>
           </div>
+          {navRole === "PATIENT" ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => setUserToggle(easy ? false : true)}
+            >
+              {easy ? "Normal size" : "Bigger, simpler"}
+            </button>
+          ) : null}
         </header>
         <main id="main-content" className="flex-1 overflow-y-auto p-8" tabIndex={-1}>
           {children}
         </main>
+        {navRole === "PATIENT" && pathname !== "/faq" ? <ClinicHelper compact /> : null}
       </div>
     </div>
   );

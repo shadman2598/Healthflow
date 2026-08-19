@@ -199,7 +199,7 @@ export function accessibilityIsComplete(): boolean {
   );
 }
 
-export function openHighImpactFindings(): A11YFinding[] {
+export function openHighImpactFindings(): A11yFinding[] {
   return A11Y_FINDINGS.filter(
     (f) => f.status === "open" && (f.severity === "critical" || f.severity === "high")
   );

@@ -92,8 +92,20 @@ export default function PatientDashboardPage() {
   return (
     <ProtectedRolePage allowedRoles={["PATIENT"]}>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Your care</h1>
-        <p className="mt-1 text-sm text-slate-600">One next step — minimum effort to stay on track</p>
+        <h1 className="text-3xl font-bold text-slate-900">Home</h1>
+        <p className="mt-2 text-lg text-slate-600">What do you need? Tap one big button.</p>
+      </div>
+
+      <div className="mb-8 grid gap-3 sm:grid-cols-3">
+        <Link href="/patient/book" className="rounded-2xl bg-teal-700 px-4 py-6 text-center text-xl font-semibold text-white">
+          Book a visit
+        </Link>
+        <Link href="/patient/visits" className="rounded-2xl bg-slate-800 px-4 py-6 text-center text-xl font-semibold text-white">
+          My visits
+        </Link>
+        <Link href="/faq" className="rounded-2xl border-2 border-slate-300 bg-white px-4 py-6 text-center text-xl font-semibold text-slate-900">
+          Help
+        </Link>
       </div>
 
       {loading ? (
@@ -132,12 +144,12 @@ export default function PatientDashboardPage() {
           <WhatsNextCard step={journeyStep} className="mb-8" />
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <DashboardCard title="Upcoming" href="/patient/appointments">
+            <DashboardCard title="Coming soon" href="/patient/visits">
               {appointments.length === 0 ? (
                 <EmptyState
                   icon={<IconCalendar className="h-10 w-10" />}
-                  title="No upcoming appointments"
-                  description="Use your next step above to request a visit, or open Care Guide if you’re unsure."
+                  title="No visits yet"
+                  description="Tap Book a visit. A checkup only needs a day and morning or afternoon."
                 />
               ) : (
                 <div className="divide-y divide-slate-100 -mx-6 -my-6">

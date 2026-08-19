@@ -96,6 +96,95 @@ body {
   line-height: 1.5;
 }
 
+html[data-easy-mode="on"] body {
+  font-size: 1.25rem;
+  line-height: 1.65;
+}
+
+html[data-easy-mode="on"] .btn-primary,
+html[data-easy-mode="on"] .btn-secondary {
+  min-height: 56px;
+  font-size: 1.125rem;
+}
+
+html[data-easy-mode="on"] nav a {
+  min-height: 52px;
+  font-size: 1.05rem;
+}
+
+html[data-easy-mode="on"] input,
+html[data-easy-mode="on"] select,
+html[data-easy-mode="on"] textarea {
+  min-height: 52px;
+  font-size: 1.125rem;
+}
+
+.helper-mouth {
+  animation: helper-talk 0.35s ease-in-out infinite alternate;
+}
+
+@keyframes helper-talk {
+  from { transform: scaleX(1) scaleY(0.4); }
+  to { transform: scaleX(0.7) scaleY(1); }
+}
+
+.faq-demo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.faq-demo-step {
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.faq-demo-problem {
+  background: #fee2e2;
+  color: #7f1d1d;
+  animation: faq-problem 3.2s ease-in-out infinite;
+}
+
+.faq-demo-fix {
+  background: #ccfbf1;
+  color: #134e4a;
+  animation: faq-fix 3.2s ease-in-out infinite;
+}
+
+.faq-demo-arrow {
+  font-weight: 700;
+  color: #334155;
+  animation: faq-arrow 3.2s ease-in-out infinite;
+}
+
+@keyframes faq-problem {
+  0%, 18% { transform: translateX(0); opacity: 1; }
+  28% { transform: translateX(-4px); opacity: 0.7; }
+  38%, 100% { transform: translateX(0); opacity: 0.45; }
+}
+
+@keyframes faq-arrow {
+  0%, 30% { opacity: 0.25; transform: translateX(-6px); }
+  50%, 100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes faq-fix {
+  0%, 40% { opacity: 0.2; transform: scale(0.96); }
+  62%, 100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .helper-mouth,
+  .faq-demo-problem,
+  .faq-demo-fix,
+  .faq-demo-arrow {
+    animation: none !important;
+  }
+}
+
 /* Stronger default for muted supporting copy on clinical surfaces */
 .text-muted-a11y {
   color: #475569; /* slate-600 — better than slate-400 on white */

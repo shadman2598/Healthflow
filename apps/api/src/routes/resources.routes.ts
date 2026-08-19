@@ -1,13 +1,24 @@
 import { Router } from "express";
-import { resourceSearchSchema } from "@technovate/shared";
+import {
+  drugLabelsQuerySchema,
+  holidaysQuerySchema,
+  resourceSearchSchema
+} from "@technovate/shared";
 import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
+import { enrichAuth } from "../middleware/enrich-auth";
+import { rateLimit } from "../middleware/rate-limit";
 import { RESOURCE_CATEGORIES, searchNearbyResources } from "../lib/nearby-resources";
+import { fetchCanadianHolidays } from "../lib/public-holidays";
+import { searchOpenFdaDrugLabels } from "../lib/openfda-labels";
+import { AppError } from "../errors/app-error";
 
 export { RESOURCE_CATEGORIES };
 
 export const resourcesRouter = Router();
+
+const publicLookupLimiter = rateLimit({ windowMs: 60_000, max: 40, keyPrefix: "resources-public-api" });
 
 resourcesRouter.get(
   "/categories",
@@ -34,6 +45,34 @@ resourcesRouter.post(
       });
     }
 
+    res.json(payload);
+  })
+);
+
+resourcesRouter.get(
+  "/holidays",
+  requireAuth,
+  enrichAuth,
+  publicLookupLimiter,
+  asyncHandler(async (req, res) => {
+    const parsed = holidaysQuerySchema.parse(req.query);
+    const year = parsed.year ?? new Date().getFullYear();
+    const payload = await fetchCanadianHolidays(year);
+    res.json(payload);
+  })
+);
+
+resourcesRouter.get(
+  "/drug-labels",
+  requireAuth,
+  enrichAuth,
+  publicLookupLimiter,
+  asyncHandler(async (req, res) => {
+    const parsed = drugLabelsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new AppError("Query q is required (min 2 characters)", 400);
+    }
+    const payload = await searchOpenFdaDrugLabels(parsed.data.q);
     res.json(payload);
   })
 );

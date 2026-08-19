@@ -223,7 +223,7 @@ ZodError: [
 
 Ensure both `.env` files exist:
 - `apps/api/.env` — required: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` (min 12 chars), `WEB_ORIGIN`
-- `apps/web/.env` — required: `NEXT_PUBLIC_API_URL`
+- `apps/web/.env` — leave `NEXT_PUBLIC_API_URL` **unset** for local Next (uses `/api/backend` rewrite). Only set it for GitHub Pages builds that talk to a hosted API.
 
 If you see `JWT_SECRET` errors, make sure it is at least 12 characters. The default `super-secret-change-me` works.
 

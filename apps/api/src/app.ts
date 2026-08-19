@@ -10,6 +10,21 @@ import { apiRouter } from "./routes";
 export const app = express();
 
 const localhostOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const githubPagesOriginPattern = /^https:\/\/([a-z0-9-]+\.)?github\.io$/i;
+
+const extraCorsOrigins = new Set(
+  env.EXTRA_CORS_ORIGINS.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
+
+function isAllowedCorsOrigin(origin: string): boolean {
+  if (origin === env.WEB_ORIGIN) return true;
+  if (extraCorsOrigins.has(origin)) return true;
+  if (githubPagesOriginPattern.test(origin)) return true;
+  if (env.NODE_ENV === "development" && localhostOriginPattern.test(origin)) return true;
+  return false;
+}
 
 app.use(
   cors({
@@ -18,11 +33,7 @@ app.use(
         callback(null, true);
         return;
       }
-      if (env.NODE_ENV === "development" && localhostOriginPattern.test(origin)) {
-        callback(null, true);
-        return;
-      }
-      if (origin === env.WEB_ORIGIN) {
+      if (isAllowedCorsOrigin(origin)) {
         callback(null, true);
         return;
       }

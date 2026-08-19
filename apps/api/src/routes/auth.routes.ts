@@ -5,7 +5,8 @@ import {
   staffSignupSchema,
   createStaffSchema,
   selectClinicSchema,
-  createInviteSchema
+  createInviteSchema,
+  dataUseConsentSchema
 } from "@technovate/shared";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../errors/app-error";
@@ -541,5 +542,31 @@ authRouter.post(
     });
 
     res.json({ ok: true, activeOrganizationId: clinic.id });
+  })
+);
+
+authRouter.post(
+  "/consent",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const body = dataUseConsentSchema.parse(req.body);
+    if (!body.dataUseConsent) throw new AppError("Consent is required", 400);
+    const user = await prisma.user.update({
+      where: { id: req.auth!.userId },
+      data: { privacyConsentAt: new Date() },
+      include: { organization: true, patientProfile: true, doctorProfile: true, staffProfile: true }
+    });
+    await writeAuditLog({
+      organizationId: req.auth!.activeOrganizationId,
+      actorId: req.auth!.userId,
+      actorRole: req.auth!.role,
+      action: "DATA_SHARED",
+      targetType: "User",
+      targetId: user.id,
+      ipAddress: req.ip,
+      metadata: { event: "data_use_waiver" }
+    });
+    const payload = serializeUser(user);
+    res.json({ user: { ...payload, activeOrganizationId: req.auth!.activeOrganizationId } });
   })
 );

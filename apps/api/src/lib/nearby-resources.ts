@@ -35,6 +35,7 @@ export const RESOURCE_CATEGORIES = [
   "Chiropractor",
   "Walk-in clinic",
   "Laboratory (blood test)",
+  "Cancer / chemo centre",
   "Imaging / x-ray",
   "Mental health support",
   "Family doctor / clinic",
@@ -93,6 +94,7 @@ function canonicalCategory(category: string): string {
   if (c === "Laboratory") return "Laboratory (blood test)";
   if (/blood\s*test|lab\b|life\s*labs|dynacare/i.test(c)) return "Laboratory (blood test)";
   if (/urgent|emergency|er\b/i.test(c) && !/hospital/i.test(c)) return "Urgent care / ER";
+  if (/cancer|chemo|oncolog/i.test(c)) return "Cancer / chemo centre";
   return c;
 }
 
@@ -146,6 +148,13 @@ function categoryFilters(category: string): string[] {
         '["healthcare:speciality"="pathology"]',
         '["amenity"="blood_bank"]',
         '["name"~"LifeLabs|Dynacare|Gamma-Dynacare|blood (test|lab|collection)|medical lab",i]'
+      ];
+    case "Cancer / chemo centre":
+      return [
+        '["healthcare"="hospital"]',
+        '["amenity"="hospital"]',
+        '["healthcare:speciality"="oncology"]',
+        '["name"~"cancer|chemo|oncolog",i]'
       ];
     case "Imaging / x-ray":
       return [
@@ -214,6 +223,8 @@ function fallbackQueries(category: string): string[] {
       return ["physiotherapy", "physiotherapist", "physical therapy"];
     case "Laboratory (blood test)":
       return ["blood test lab", "medical laboratory", "LifeLabs", "Dynacare"];
+    case "Cancer / chemo centre":
+      return ["cancer centre", "oncology clinic", "chemotherapy"];
     case "Imaging / x-ray":
       return ["medical imaging", "x-ray clinic", "radiology"];
     case "Walk-in clinic":

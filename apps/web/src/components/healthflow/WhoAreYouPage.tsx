@@ -7,6 +7,7 @@ import { apiRequest } from "../../lib/api";
 import { getGuestUser, startGuestSession } from "../../lib/guest-session";
 import { roleDashboardPath } from "../../lib/role-config";
 import type { HealthFlowUser } from "../../types/healthflow";
+import { COMBINED_MECHANISMS, studyDesignRule } from "@technovate/shared";
 import { IconShield } from "../ui/Icons";
 import { cn } from "../../lib/utils";
 import { DemoAccessGuide } from "./DemoAccessGuide";
@@ -25,7 +26,7 @@ const ROLES: RoleOption[] = [
   {
     id: "patient",
     label: "Patient",
-    description: "View your appointments, message the clinic, and manage your care.",
+    description: "Book a visit in a few taps. See your visits. Ask Helper if you get stuck.",
     signInHref: "/login/patient",
     signUpHref: "/signup/patient",
     bubbleClass: "from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shadow-teal-500/25",
@@ -58,7 +59,7 @@ export function WhoAreYouPage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("guest") === "1") {
       startGuestSession();
-      router.replace("/patient/dashboard");
+      router.replace("/patient/book");
       return;
     }
     const guest = getGuestUser();
@@ -74,7 +75,7 @@ export function WhoAreYouPage() {
   const continueAsGuest = (): void => {
     setStartingGuest(true);
     startGuestSession();
-    router.replace("/patient/dashboard");
+    router.replace("/patient/book");
   };
 
   return (
@@ -86,10 +87,18 @@ export function WhoAreYouPage() {
           </div>
           <p className="text-sm font-semibold uppercase tracking-widest text-brand-600">HealthFlow</p>
           <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            Who are you?
+            Need a clinic visit?
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-base text-slate-500">
-            Choose your role to sign in or create an account. Each portal shows only what you need.
+          <p className="mx-auto mt-3 max-w-xl text-lg text-slate-600">
+            Tap Patient. Pick a day. We put it on the calendar. That is the whole idea.
+          </p>
+          <p className="mx-auto mt-2 max-w-lg text-base text-slate-500">
+            Doctors and reception still have their own doors. Helper can talk if you get stuck.
+          </p>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
+            <Link href="/study" className="font-medium text-brand-700 underline-offset-2 hover:underline">
+              See the products we studied and the mechanisms we combine
+            </Link>
           </p>
         </div>
 
@@ -100,11 +109,11 @@ export function WhoAreYouPage() {
             disabled={startingGuest}
             className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
           >
-            {startingGuest ? "Opening preview..." : "Continue as guest"}
+            {startingGuest ? "Opening…" : "Look around first (no account)"}
           </button>
         </div>
-        <p className="mb-10 text-center text-sm text-slate-500">
-          Browse the patient portal without signing in. Live clinic data appears after you create an account or sign in.
+        <p className="mb-10 text-center text-base text-slate-600">
+          You will see three big buttons: Book a visit, My visits, and Help. A real visit still needs an account.
         </p>
 
         <div className="grid gap-6 sm:grid-cols-3">
@@ -145,6 +154,26 @@ export function WhoAreYouPage() {
             </div>
           ))}
         </div>
+
+        <section className="mb-10 rounded-2xl border border-slate-200 bg-white/80 p-6 text-left" aria-labelledby="mechanisms-heading">
+          <h2 id="mechanisms-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Mechanisms we combine
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">{studyDesignRule()}</p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {COMBINED_MECHANISMS.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href="/study"
+                  className="block rounded-xl border border-slate-100 px-3 py-2 text-sm text-slate-700 hover:border-brand-200 hover:bg-brand-50/50"
+                >
+                  <span className="font-medium text-slate-900">{item.mechanism}</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">From {item.learnedFrom}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <DemoAccessGuide />
 

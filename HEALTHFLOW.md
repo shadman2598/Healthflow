@@ -53,7 +53,9 @@ npx prisma db push --force-reset
 npx tsx prisma/seed.ts
 ```
 
-### 4. Run servers
+### 4. Run servers (local clinic mode)
+
+Same-origin API proxy — matches a normal clinic deploy, **not** the static GitHub Pages site.
 
 **Terminal 1 — API**
 
@@ -68,9 +70,25 @@ npx tsx src/index.ts
 npm run dev -w @technovate/web
 ```
 
-Open **http://localhost:3000/login**
+Open **http://localhost:3000/** (or `/login`).
 
+> Do **not** set `NEXT_PUBLIC_API_URL` for this mode. The web app calls `/api/backend/*`, which Next rewrites to Express so auth cookies work.
+>
 > If port 3000 is busy, Next.js may use 3001 — update `WEB_ORIGIN` in `apps/api/.env` to match.
+
+### 4b. Preview like the official website (GitHub Pages)
+
+Static export under `/Healthflow/` — same layout and guest/public-integration behavior as https://shadman2598.github.io/Healthflow/
+
+```bash
+npm run preview:pages:build
+```
+
+Open **http://localhost:4173/Healthflow/**
+
+Or if `apps/web/out` already exists: `npm run preview:pages`
+
+> Pages has no Express server. Guest browse, calendar holidays (Nager), Care Guide labels (openFDA), and nearby resources run in the browser. Full role login needs local clinic mode above.
 
 ### 5. Demo accounts
 
@@ -160,7 +178,6 @@ Canonical constants: `packages/shared/src/product-positioning.ts`.
 ## Future roadmap
 
 - Real SMS via Twilio
-- Google Maps API for resource finder
 - EHR/EMR connectors behind FHIR adapters
 - Digital intake forms with provenance
 - AI message summarization (human-reviewed, non-diagnostic)
@@ -169,6 +186,18 @@ Canonical constants: `packages/shared/src/product-positioning.ts`.
 - Production MFA (TOTP/WebAuthn)
 - Field-level encryption for healthcare numbers
 - Collapse legacy `Patient` + `PatientProfile` dual models
+
+## Public API integrations
+
+| Integration | Endpoint | Purpose |
+|-------------|----------|---------|
+| Nager.Date (CA holidays) | `GET /resources/holidays` | Calendar / desk awareness of public holidays |
+| openFDA drug labels | `GET /resources/drug-labels?q=` | Care Guide educational label summaries (not prescribing) |
+| OpenStreetMap / Overpass | `POST /resources/search` | Nearby pharmacy/clinic finder |
+
+Holiday and openFDA lookups fail soft (empty results + note) so clinic workflows are never blocked by third-party downtime.
+
+On GitHub Pages (no API), the web app calls Nager.Date and openFDA directly from the browser with the same disclaimers.
 
 ## Legacy Technovate routes
 

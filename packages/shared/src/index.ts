@@ -16,7 +16,10 @@ export * from "./analytics";
 export * from "./accessibility";
 export * from "./workflow-e2e";
 export * from "./product-positioning";
+export * from "./public-integrations";
 export * from "./provenance";
+export * from "./study-mechanisms";
+export * from "./simple-care";
 
 export const healthResponseSchema = z.object({
   ok: z.boolean(),

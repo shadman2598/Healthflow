@@ -3,6 +3,8 @@ import {
   appointmentsQuerySchema,
   createAppointmentSchema,
   idParamSchema,
+  pickDaypartSlot,
+  simpleAppointmentRequestSchema,
   toScheduleSyncRecord,
   updateAppointmentSchema
 } from "@technovate/shared";
@@ -11,10 +13,10 @@ import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../utils/async-handler";
 import { requireAuth } from "../middleware/require-auth";
 import { enrichAuth } from "../middleware/enrich-auth";
-import { canManageAppointments } from "../lib/permissions";
+import { canManageAppointments, authHasPermission } from "../lib/permissions";
 import { assertDoctorOwnsAppointment } from "../lib/patient-access";
 import { findScheduleConflicts } from "../lib/scheduling";
-import { bookAppointmentTransactional } from "../lib/scheduling-engine";
+import { bookAppointmentTransactional, listAvailableSlots } from "../lib/scheduling-engine";
 import { mergeAppointmentNarratives } from "../lib/data-propagation";
 import { writeAuditLog } from "../lib/audit";
 import { sanitizeText } from "../lib/sanitize";
@@ -60,6 +62,146 @@ appointmentsRouter.get(
     });
 
     res.json({ appointments });
+  })
+);
+
+appointmentsRouter.post(
+  "/simple",
+  asyncHandler(async (req, res) => {
+    if (!authHasPermission(req.auth!, "appointment:request_own")) {
+      throw new AppError("Forbidden", 403);
+    }
+    if (req.auth!.role !== "PATIENT") throw new AppError("Forbidden", 403);
+
+    const body = simpleAppointmentRequestSchema.parse(req.body);
+    const orgId = req.auth!.activeOrganizationId;
+    const profileId = req.auth!.patientProfileId;
+    if (!profileId) throw new AppError("No patient record on this account", 400);
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: { privacyConsentAt: true }
+    });
+    if (!user?.privacyConsentAt) {
+      await prisma.user.update({
+        where: { id: req.auth!.userId },
+        data: { privacyConsentAt: new Date() }
+      });
+      await writeAuditLog({
+        organizationId: orgId,
+        actorId: req.auth!.userId,
+        actorRole: req.auth!.role,
+        action: "DATA_SHARED",
+        targetType: "User",
+        targetId: req.auth!.userId,
+        ipAddress: req.ip,
+        metadata: { event: "data_use_waiver" }
+      });
+    }
+
+    const profile = await prisma.patientProfile.findFirst({
+      where: { id: profileId, organizationId: orgId },
+      include: { patientRecord: true, assignedDoctor: true }
+    });
+    if (!profile) throw new AppError("Patient profile not found", 404);
+
+    let patientId = profile.patientRecord?.id;
+    if (!patientId) {
+      const created = await prisma.patient.create({
+        data: {
+          organizationId: orgId,
+          profileId: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          email: profile.email,
+          phone: profile.phone
+        }
+      });
+      patientId = created.id;
+    }
+
+    const doctors = await prisma.doctorProfile.findMany({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: "asc" }
+    });
+    const doctorIds = [
+      ...(profile.assignedDoctorId ? [profile.assignedDoctorId] : []),
+      ...doctors.map((d) => d.id)
+    ].filter((id, i, arr) => arr.indexOf(id) === i);
+    if (doctorIds.length === 0) {
+      throw new AppError("No doctor is set up at this clinic yet. Please message the clinic.", 503);
+    }
+
+    const category =
+      body.need === "checkup" ? "CHECKUP" : body.need === "follow_up" ? "FOLLOW_UP" : "OTHER";
+    const reason =
+      body.need === "other"
+        ? sanitizeText(body.needDetail?.trim() || "Other need", 200)
+        : body.need === "checkup"
+          ? "Checkup"
+          : "Follow-up";
+
+    const dayStart = new Date(`${body.day}T00:00:00`);
+    if (Number.isNaN(dayStart.getTime()) || dayStart.getTime() < Date.now() - 24 * 3600_000) {
+      throw new AppError("Pick a day that is today or later.", 400);
+    }
+
+    let chosen: { doctorId: string; startsAt: string } | null = null;
+    for (let offset = 0; offset < 14 && !chosen; offset += 1) {
+      const from = new Date(dayStart.getTime() + offset * 86400000);
+      const to = new Date(from.getTime() + 86400000);
+      for (const doctorId of doctorIds) {
+        const slots = await listAvailableSlots({
+          organizationId: orgId,
+          doctorId,
+          from,
+          to,
+          category
+        });
+        const hit = pickDaypartSlot(slots, body.timeOfDay);
+        if (hit) {
+          chosen = { doctorId, startsAt: hit.startsAt };
+          break;
+        }
+      }
+    }
+
+    if (!chosen) {
+      throw new AppError(
+        "No open time that day. Try another day, or message the clinic.",
+        409
+      );
+    }
+
+    const { appointment, idempotentReplay } = await bookAppointmentTransactional({
+      organizationId: orgId,
+      patientId,
+      profileId: profile.id,
+      doctorId: chosen.doctorId,
+      scheduledAt: new Date(chosen.startsAt),
+      category,
+      reason,
+      actorId: req.auth!.userId,
+      idempotencyKey: `simple-${req.auth!.userId}-${body.day}-${body.timeOfDay}-${body.need}`
+    });
+
+    if (!idempotentReplay) {
+      await writeAuditLog({
+        organizationId: orgId,
+        actorId: req.auth!.userId,
+        actorRole: req.auth!.role,
+        action: "APPOINTMENT_CREATED",
+        targetType: "Appointment",
+        targetId: appointment.id,
+        ipAddress: req.ip,
+        metadata: { simpleRequest: true, need: body.need }
+      });
+    }
+
+    res.status(idempotentReplay ? 200 : 201).json({
+      appointment,
+      message: "Your visit is on the calendar. The clinic can see it."
+    });
   })
 );
 

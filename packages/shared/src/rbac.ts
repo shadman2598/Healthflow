@@ -29,6 +29,7 @@ export const PERMISSIONS = [
   "appointment:update_clinic",
   "appointment:update_own_schedule",
   "appointment:update_own_status",
+  "appointment:request_own",
   "appointment:delete_clinic",
 
   // Messaging
@@ -97,6 +98,7 @@ const PATIENT_PERMS: Permission[] = [
   "patient:update_own_prefs",
   "appointment:read_own",
   "appointment:update_own_status",
+  "appointment:request_own",
   "message:read_own",
   "message:create_own",
   "message:reply",

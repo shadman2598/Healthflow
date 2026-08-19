@@ -13,8 +13,7 @@ import { ApiError, apiRequest } from "../../../lib/api";
 import { findClinicFee } from "../../../lib/clinic-fees";
 import {
   getLocalPrepProgress,
-  resolvePatientNextStep,
-  VISIT_REQUEST_DRAFT_PATH
+  resolvePatientNextStep
 } from "../../../lib/patient-journey";
 import { useToast } from "../../../contexts/toast-context";
 import { cn } from "../../../lib/utils";
@@ -226,7 +225,7 @@ function PatientAppointmentsContent() {
               <EmptyState
                 icon={<IconCalendar className="h-10 w-10" />}
                 title="No upcoming appointments"
-                description="Message the clinic to request a visit when you are ready."
+                description="Tap Book a visit. A checkup only needs a day."
               />
             ) : (
               <div className="space-y-3">
@@ -286,8 +285,8 @@ function PatientAppointmentsContent() {
             )}
             {upcoming.length === 0 && !isGuest ? (
               <div className="mt-4">
-                <Link href={VISIT_REQUEST_DRAFT_PATH} className="btn-primary text-sm">
-                  Request a visit
+                <Link href="/patient/book" className="btn-primary text-sm">
+                  Book a visit
                 </Link>
               </div>
             ) : null}

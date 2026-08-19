@@ -7,6 +7,7 @@ import { ApiError, apiRequest } from "../../../lib/api";
 import { useToast } from "../../../contexts/toast-context";
 import type { HealthFlowUser } from "../../../types/healthflow";
 import { IconArrowLeft, IconShield } from "../../../components/ui/Icons";
+import { DATA_USE_WAIVER, DATA_USE_WAIVER_TITLE } from "@technovate/shared";
 
 export default function PatientSignupPage() {
   const router = useRouter();
@@ -109,8 +110,8 @@ export default function PatientSignupPage() {
               onChange={(e) => setForm({ ...form, privacyConsent: e.target.checked })}
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
             />
-            <span className="text-sm text-slate-600">
-              I consent to HealthFlow collecting and processing my personal health information in accordance with the privacy policy.
+            <span className="text-sm text-slate-700">
+              <strong>{DATA_USE_WAIVER_TITLE}.</strong> {DATA_USE_WAIVER}
             </span>
           </label>
           <button type="submit" disabled={loading} className="btn-primary w-full">

@@ -9,6 +9,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   WEB_ORIGIN: z.string().default("http://localhost:3000"),
+  /** Comma-separated extra browser origins (e.g. https://shadman2598.github.io for Pages). */
+  EXTRA_CORS_ORIGINS: z.string().default(""),
   JWT_SECRET: z.string().min(12),
   JWT_EXPIRES_IN: z.string().default("7d"),
   COOKIE_NAME: z.string().default("technovate_token"),

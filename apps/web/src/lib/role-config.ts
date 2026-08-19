@@ -23,15 +23,13 @@ export const ROLE_NAV: Record<
   NavItemConfig[]
 > = {
   PATIENT: [
-    { href: "/patient/dashboard", label: "Dashboard", icon: "dashboard" },
-    { href: "/patient/care-guide", label: "Care Guide", icon: "clipboard" },
-    { href: "/calendar", label: "Calendar", icon: "calendar" },
-    { href: "/messages", label: "Messages", icon: "chat" },
-    { href: "/patient/appointments", label: "Appointment History", icon: "calendar" },
-    { href: "/patient/reminders", label: "Reminders", icon: "alert" },
-    { href: "/resources", label: "Fees & Resources", icon: "search" },
-    { href: "/faq", label: "FAQ", icon: "help" },
-    { href: "/patient/profile", label: "Profile", icon: "settings" }
+    { href: "/patient/dashboard", label: "Home", icon: "dashboard" },
+    { href: "/patient/book", label: "Book a visit", icon: "calendar" },
+    { href: "/patient/visits", label: "My visits", icon: "clipboard" },
+    { href: "/messages", label: "Message clinic", icon: "chat" },
+    { href: "/resources", label: "Find a place", icon: "search" },
+    { href: "/faq", label: "Help", icon: "help" },
+    { href: "/patient/profile", label: "My info", icon: "settings" }
   ],
   RECEPTIONIST: [
     { href: "/receptionist/dashboard", label: "Dashboard", icon: "dashboard" },
@@ -56,12 +54,12 @@ export const ROLE_NAV: Record<
     { href: "/faq", label: "FAQ", icon: "help" }
   ],
   NURSE: [
-    { href: "/receptionist/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/receptionist/dashboard", label: "Today", icon: "dashboard" },
     { href: "/patients", label: "Patients", icon: "users" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/messages", label: "Messages", icon: "chat" },
-    { href: "/resources", label: "Fees & Resources", icon: "search" },
-    { href: "/faq", label: "FAQ", icon: "help" }
+    { href: "/resources", label: "Places", icon: "search" },
+    { href: "/faq", label: "Help", icon: "help" }
   ],
   BILLING: [
     { href: "/resources", label: "Fees & Resources", icon: "search" },

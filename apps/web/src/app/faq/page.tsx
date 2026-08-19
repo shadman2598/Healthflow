@@ -1,78 +1,43 @@
 "use client";
 
+import { SIMPLE_FAQ } from "@technovate/shared";
 import { ProtectedRolePage } from "../../components/healthflow/ProtectedRolePage";
-import { IconChevronRight, IconShield } from "../../components/ui/Icons";
-
-const faqs = [
-  {
-    q: "What is Care Guide?",
-    a: "Care Guide helps you decide next steps (message, book, urgent care), prepare for visits, and search clinic answers like fees and how-tos. It is not a diagnosis tool and not for emergencies."
-  },
-  {
-    q: "How much does a sick note cost?",
-    a: "A standard sick note / work or school absence note is $50 at this clinic. Other forms and uninsured services have different prices — open Fees & Resources to see the full list before you request one."
-  },
-  {
-    q: "How do I view upcoming appointments?",
-    a: "Sign in as a patient and open Dashboard, Calendar, or Appointment History. Upcoming visits show date, provider, purpose, and status."
-  },
-  {
-    q: "How do I message the clinic?",
-    a: "Go to Messages and start a new thread. You can ask about appointment times, what a visit is for, or general clinic questions."
-  },
-  {
-    q: "How do reminders work?",
-    a: "Staff can schedule email, SMS (placeholder), or in-app reminders before your appointment. You can set preferences in Profile."
-  },
-  {
-    q: "How do I update my contact information?",
-    a: "Open Profile to review your details. Contact the clinic receptionist to update phone, email, or address on file."
-  },
-  {
-    q: "Who can see my information?",
-    a: "Patients see only their own records. Receptionists and doctors see clinic patients they manage. Admins can access audit logs. Staff internal notes are never shown to patients."
-  },
-  {
-    q: "What should I do in an emergency?",
-    a: "This app is not for emergencies. If you are experiencing a medical emergency, call local emergency services immediately."
-  },
-  {
-    q: "How is my data protected?",
-    a: "HealthFlow uses secure login, role-based access, audit logging, masked healthcare numbers, and encrypted connections in production."
-  },
-  {
-    q: "How do I request a reschedule?",
-    a: "Open Appointment History, select an upcoming visit, and tap Request reschedule. Reception will follow up to confirm a new time."
-  }
-];
+import { ClinicHelper } from "../../components/healthflow/ClinicHelper";
+import { IconShield } from "../../components/ui/Icons";
 
 export default function FaqPage() {
   return (
-    <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"]}>
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-slate-900">FAQ</h1>
-        <p className="mt-1 text-sm text-slate-500">Common questions about using HealthFlow</p>
+    <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "NURSE", "ADMIN", "SUPER_ADMIN"]}>
+      <h1 className="text-3xl font-bold text-slate-900">Help</h1>
+      <p className="mt-2 max-w-2xl text-lg text-slate-600">
+        Short answers. Helper can talk out loud. Helper is not a real doctor.
+      </p>
+
+      <div className="mt-6">
+        <ClinicHelper />
       </div>
 
-      <div className="mb-6 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Emergency disclaimer:</strong> This app is not for emergencies. If you are experiencing a medical emergency, call local emergency services.
+      <div className="mt-6 rounded-xl border border-red-100 bg-red-50 p-4 text-base text-red-800">
+        <strong>If you are very sick right now:</strong> call emergency services. Do not use this app.
       </div>
 
-      <div className="mx-auto max-w-3xl space-y-4">
-        {faqs.map((item) => (
-          <details key={item.q} className="card group">
-            <summary className="flex cursor-pointer list-none items-center justify-between px-6 py-4 font-medium text-slate-900">
-              {item.q}
-              <IconChevronRight className="h-5 w-5 text-slate-400 transition-transform group-open:rotate-90" />
-            </summary>
-            <div className="border-t border-slate-100 px-6 py-4 text-sm leading-relaxed text-slate-600">{item.a}</div>
-          </details>
+      <div className="mx-auto mt-8 max-w-3xl space-y-6">
+        {SIMPLE_FAQ.map((item) => (
+          <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+            <h2 className="text-xl font-semibold text-slate-900">{item.q}</h2>
+            <p className="mt-2 text-lg text-slate-700">{item.a}</p>
+            <div className="faq-demo mt-4" aria-hidden>
+              <div className="faq-demo-step faq-demo-problem">Problem: {item.problem}</div>
+              <div className="faq-demo-arrow">then</div>
+              <div className="faq-demo-step faq-demo-fix">Fix: {item.fix}</div>
+            </div>
+          </article>
         ))}
       </div>
 
-      <p className="mx-auto mt-8 max-w-3xl text-center text-xs text-slate-400">
+      <p className="mx-auto mt-8 max-w-3xl text-center text-sm text-slate-500">
         <IconShield className="mr-1 inline h-3.5 w-3.5" />
-        HealthFlow supports clinic workflow only — not diagnosis or treatment advice.
+        This app helps with clinic visits. It does not diagnose or treat.
       </p>
     </ProtectedRolePage>
   );

@@ -10,6 +10,8 @@
     "dev": "concurrently \"npm run dev -w @technovate/api\" \"npm run dev -w @technovate/web -- -p 3000\"",
     "dev:healthflow": "concurrently \"npx tsx apps/api/src/index.ts\" \"npm run dev -w @technovate/web -- -p 3000\"",
     "dev:with-reminders": "concurrently \"npm run dev -w @technovate/api\" \"npm run dev:scheduler -w @technovate/api\" \"npm run dev:worker -w @technovate/api\" \"npm run dev -w @technovate/web\"",
+    "preview:pages": "node scripts/preview-pages.cjs",
+    "preview:pages:build": "node scripts/preview-pages.cjs --build",
     "build": "npm run build -w @technovate/shared && npm run build -w @technovate/api && npm run build -w @technovate/web",
     "lint": "npm run lint -w @technovate/shared && npm run lint -w @technovate/api && npm run lint -w @technovate/web"
   },

@@ -7,6 +7,7 @@ import { getGuestUser } from "../../lib/guest-session";
 import { roleHasAllPermissions, type Permission } from "../../lib/permissions";
 import { normalizeRole, roleDashboardPath, roleLoginPath } from "../../lib/role-config";
 import type { HealthFlowRole, HealthFlowUser } from "../../types/healthflow";
+import { EasyModeProvider } from "./EasyModeProvider";
 import { RoleShell } from "./RoleShell";
 
 type ProtectedRolePageProps = {
@@ -108,7 +109,11 @@ export function ProtectedRolePage({
     );
   }
 
-  return <RoleShell>{children}</RoleShell>;
+  return (
+    <EasyModeProvider dateOfBirth={user.patientProfile?.dateOfBirth}>
+      <RoleShell>{children}</RoleShell>
+    </EasyModeProvider>
+  );
 }
 
 export function useHealthFlowUser(): HealthFlowUser | null {

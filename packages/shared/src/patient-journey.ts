@@ -70,11 +70,7 @@ export type JourneyStep = {
 
 const ACTIVE = new Set(["SCHEDULED", "CONFIRMED", "RESCHEDULE_REQUESTED"]);
 
-export const VISIT_REQUEST_DRAFT_PATH =
-  "/messages?draft=" +
-  encodeURIComponent(
-    "I'd like to request an appointment.\n\nPreferred timing:\nReason for visit:\n"
-  );
+export const VISIT_REQUEST_DRAFT_PATH = "/patient/book";
 
 export function confirmVisitHref(appointmentId: string): string {
   return `/patient/appointments?action=confirm&id=${encodeURIComponent(appointmentId)}`;
@@ -208,7 +204,7 @@ export function resolvePatientNextStep(ctx: JourneyContext): JourneyStep {
         title: "Reschedule request sent",
         body: "Reception will follow up with a new time. You don’t need to call unless your availability changed.",
         primary: { label: "Open messages", href: "/messages" },
-        secondary: [{ label: "View appointment", href: "/patient/appointments" }],
+        secondary: [{ label: "View appointment", href: "/patient/visits" }],
         appointment: next
       },
       "appoint",
@@ -224,7 +220,7 @@ export function resolvePatientNextStep(ctx: JourneyContext): JourneyStep {
         title: "Checked in — please wait for your clinician",
         body: "The front desk has you on the board. Prescriptions, orders, and results (if any) are handled by the clinic after your visit — watch Messages for follow-up.",
         primary: { label: "Open messages", href: "/messages" },
-        secondary: [{ label: "View visit", href: "/patient/appointments" }],
+        secondary: [{ label: "View visit", href: "/patient/visits" }],
         appointment: next
       },
       "encounter",
@@ -239,7 +235,7 @@ export function resolvePatientNextStep(ctx: JourneyContext): JourneyStep {
         eyebrow: "Today's visit",
         title: "Check in at the front desk when you arrive",
         body: "You’re confirmed for today. Reception will check you in — no extra forms needed if your profile is up to date.",
-        primary: { label: "View visit details", href: "/patient/appointments" },
+        primary: { label: "View visit details", href: "/patient/visits" },
         secondary: [
           { label: "Message clinic", href: "/messages" },
           { label: "Quick prep", href: prepVisitHref(next.id) }

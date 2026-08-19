@@ -12,7 +12,9 @@ import { IconPhone, IconSearch, IconShield } from "../../components/ui/Icons";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { CLINIC_FEE_CATEGORIES, CLINIC_FEE_DISCLAIMER } from "../../lib/clinic-fees";
+import { simpleResourceLabel } from "@technovate/shared";
 import { RESOURCE_CATEGORIES } from "../../lib/nearby-resources";
+import { isGithubPagesRuntime } from "../../lib/runtime-config";
 import { useToast } from "../../contexts/toast-context";
 import type { ResourceResult } from "../../types/healthflow";
 import { cn } from "../../lib/utils";
@@ -40,7 +42,7 @@ export default function ResourcesPage() {
   return (
     <Suspense
       fallback={
-        <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"]}>
+        <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "NURSE", "BILLING", "ADMIN", "SUPER_ADMIN"]}>
           <div className="flex h-48 items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
           </div>
@@ -67,19 +69,29 @@ function ResourcesContent() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { isSubmitting, errors }
   } = useForm<SearchForm>({
     resolver: zodResolver(searchSchema),
-    defaultValues: { postalCode: "", category: "Pharmacy" }
+    defaultValues: {
+      postalCode: "",
+      category: searchParams.get("category") || "Pharmacy"
+    }
   });
 
   useEffect(() => {
     if (searchParams.get("tab") === "finder") setTab("finder");
     if (searchParams.get("tab") === "fees") setTab("fees");
-  }, [searchParams]);
+    const wanted = searchParams.get("category");
+    if (wanted) {
+      setTab("finder");
+      setValue("category", wanted);
+      setCategories((prev) => (prev.includes(wanted) ? prev : [wanted, ...prev]));
+    }
+  }, [searchParams, setValue]);
 
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_GITHUB_PAGES === "true") {
+    if (isGithubPagesRuntime()) {
       setCategories([...RESOURCE_CATEGORIES]);
       return;
     }
@@ -109,7 +121,7 @@ function ResourcesContent() {
     try {
       let payload: SearchResponse;
 
-      if (process.env.NEXT_PUBLIC_GITHUB_PAGES === "true") {
+      if (isGithubPagesRuntime()) {
         // Static GitHub Pages has no Next API routes — search from the browser.
         const { searchNearbyResources } = await import("../../lib/nearby-resources");
         payload = await searchNearbyResources(data.postalCode, data.category);
@@ -139,7 +151,7 @@ function ResourcesContent() {
   };
 
   return (
-    <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "ADMIN", "SUPER_ADMIN"]}>
+    <ProtectedRolePage allowedRoles={["PATIENT", "RECEPTIONIST", "DOCTOR", "NURSE", "BILLING", "ADMIN", "SUPER_ADMIN"]}>
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-900">Resources</h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -245,11 +257,10 @@ function ResourcesContent() {
       ) : (
         <div className="space-y-6">
           <div className="rounded-xl border border-brand-100 bg-brand-50/70 p-5">
-            <h2 className="text-base font-semibold text-brand-900">Find care near you</h2>
+            <h2 className="text-base font-semibold text-brand-900">Find a place near you</h2>
             <p className="mt-2 text-sm leading-relaxed text-brand-900/80">
-              Enter your Canadian postal code to find nearby pharmacies, optometrists, physiotherapists,
-              blood-test labs, walk-in clinics, hospitals, and more. Places are measured from your
-              postal-code centre and ranked by estimated driving distance when available.
+              Type your postal code. Pick what you need: medicine store, blood tests, cancer / chemo centre, and more.
+              We show nearby places. We do not book them for you.
             </p>
           </div>
 
@@ -271,7 +282,7 @@ function ResourcesContent() {
               <select className="w-full" {...register("category")}>
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat}
+                    {simpleResourceLabel(cat)}
                   </option>
                 ))}
               </select>

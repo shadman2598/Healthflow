@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import type { PublicHoliday } from "@technovate/shared";
 import { ProtectedRolePage } from "../../components/healthflow/ProtectedRolePage";
 import { AppointmentCalendar } from "../../components/healthflow/AppointmentCalendar";
 import { WhatsNextCard } from "../../components/healthflow/WhatsNextCard";
@@ -10,6 +11,7 @@ import { APPOINTMENT_CATEGORY_COLORS } from "../../lib/role-config";
 import { resolvePatientNextStep, VISIT_REQUEST_DRAFT_PATH } from "../../lib/patient-journey";
 import { cn } from "../../lib/utils";
 import { apiRequest } from "../../lib/api";
+import { fetchCanadianHolidaysClient } from "../../lib/public-integrations-client";
 import type { HealthFlowAppointment, HealthFlowUser } from "../../types/healthflow";
 
 type FilterOption = { id: string; label: string };
@@ -43,6 +45,8 @@ function CalendarContent() {
   const [dateTo, setDateTo] = useState("");
   const [role, setRole] = useState<HealthFlowUser["role"] | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
+  const [holidayNote, setHolidayNote] = useState<string | null>(null);
   const focusAppointmentId = searchParams.get("appointmentId");
 
   useEffect(() => {
@@ -100,16 +104,54 @@ function CalendarContent() {
       setLoading(true);
       try {
         const { isGuestSession } = await import("../../lib/guest-session");
-        if (isGuestSession()) {
+        const guest = isGuestSession();
+        const year = new Date().getFullYear();
+
+        const loadHolidays = async (): Promise<void> => {
+          try {
+            if (guest) {
+              const holidayRes = await fetchCanadianHolidaysClient(year);
+              setHolidays(holidayRes.holidays ?? []);
+              setHolidayNote(holidayRes.disclaimer ?? holidayRes.integrationNote ?? null);
+              return;
+            }
+            const holidayRes = await apiRequest<{
+              holidays: PublicHoliday[];
+              disclaimer?: string;
+              integrationNote?: string;
+            }>(`/resources/holidays?year=${year}`);
+            setHolidays(holidayRes.holidays ?? []);
+            setHolidayNote(holidayRes.disclaimer ?? holidayRes.integrationNote ?? null);
+          } catch {
+            const holidayRes = await fetchCanadianHolidaysClient(year);
+            setHolidays(holidayRes.holidays ?? []);
+            setHolidayNote(holidayRes.disclaimer ?? holidayRes.integrationNote ?? null);
+          }
+        };
+
+        if (guest) {
           setAppointments([]);
+          await loadHolidays();
           return;
         }
-        const res = await apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?${queryString}`);
+
+        const [apptRes] = await Promise.all([
+          apiRequest<{ appointments: HealthFlowAppointment[] }>(`/appointments?${queryString}`),
+          loadHolidays()
+        ]);
         setAppointments(
-          res.appointments.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+          apptRes.appointments.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
         );
       } catch {
         setAppointments([]);
+        try {
+          const year = new Date().getFullYear();
+          const holidayRes = await fetchCanadianHolidaysClient(year);
+          setHolidays(holidayRes.holidays ?? []);
+          setHolidayNote(holidayRes.disclaimer ?? holidayRes.integrationNote ?? null);
+        } catch {
+          /* ignore */
+        }
       } finally {
         setLoading(false);
       }
@@ -121,6 +163,19 @@ function CalendarContent() {
     if (role !== "PATIENT") return null;
     return resolvePatientNextStep({ isGuest, appointments, threads: [] });
   }, [role, isGuest, appointments]);
+
+  const upcomingHolidays = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const horizon = new Date(today);
+    horizon.setMonth(horizon.getMonth() + 4);
+    return holidays
+      .filter((h) => {
+        const d = new Date(`${h.date}T12:00:00`);
+        return d >= today && d <= horizon;
+      })
+      .slice(0, 8);
+  }, [holidays]);
 
   const focusAppt = focusAppointmentId
     ? appointments.find((a) => a.id === focusAppointmentId)
@@ -172,6 +227,32 @@ function CalendarContent() {
           </Link>
           .
         </div>
+      ) : null}
+
+      {upcomingHolidays.length > 0 ? (
+        <section
+          className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3"
+          aria-label="Canadian public holidays"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Public holidays (Canada)
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {upcomingHolidays.map((h) => (
+              <li
+                key={`${h.date}-${h.name}`}
+                className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 ring-1 ring-inset ring-amber-600/15"
+              >
+                {new Date(`${h.date}T12:00:00`).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric"
+                })}{" "}
+                · {h.localName}
+              </li>
+            ))}
+          </ul>
+          {holidayNote ? <p className="mt-2 text-[11px] text-slate-500">{holidayNote}</p> : null}
+        </section>
       ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">

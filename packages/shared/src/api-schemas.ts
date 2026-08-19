@@ -158,6 +158,18 @@ export const createAppointmentSchema = z.object({
   bypassAvailability: z.boolean().optional()
 });
 
+export const simpleAppointmentRequestSchema = z.object({
+  need: z.enum(["checkup", "follow_up", "other"]),
+  needDetail: z.string().max(200).optional(),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  timeOfDay: z.enum(["morning", "afternoon"]),
+  dataUseConsent: z.literal(true)
+});
+
+export const dataUseConsentSchema = z.object({
+  dataUseConsent: z.literal(true)
+});
+
 export const schedulingSlotsQuerySchema = z.object({
   doctorId: z.string().min(1),
   from: z.string().datetime(),

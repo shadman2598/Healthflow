@@ -162,21 +162,17 @@ const OUTCOMES: Record<UrgencyLevel, Omit<CareOutcome, "actions"> & { actionBuil
     actionBuilder: () => [
       { label: "Find nearby care", href: "/resources?tab=finder", primary: true },
       { label: "Message the clinic", href: "/messages" },
-      { label: "View appointments", href: "/patient/appointments" }
+      { label: "View visits", href: "/patient/visits" }
     ]
   },
   schedule: {
     level: "schedule",
     title: "Book or wait for a clinic visit",
-    body: "A scheduled visit with your clinic is a reasonable next step. Message reception to request a time — online self-booking is not available yet.",
+    body: "A scheduled visit with your clinic is a reasonable next step. Tap Book a visit. A checkup only needs a day and morning or afternoon.",
     actionBuilder: () => [
       {
-        label: "Request a visit",
-        href:
-          "/messages?draft=" +
-          encodeURIComponent(
-            "I'd like to request an appointment.\n\nPreferred timing:\nReason for visit:\n"
-          ),
+        label: "Book a visit",
+        href: "/patient/book",
         primary: true
       },
       { label: "View calendar", href: "/calendar" },
@@ -275,8 +271,8 @@ const HOWTO_SNIPPETS: ClinicAssistHit[] = [
     id: "howto-reschedule",
     kind: "howto",
     title: "How do I reschedule?",
-    body: "Open Appointment History, choose an upcoming visit, then Request reschedule. Reception will follow up.",
-    href: "/patient/appointments"
+    body: "Open My visits. To change a visit, tap Open visit details, then Request reschedule. Reception will follow up.",
+    href: "/patient/visits"
   },
   {
     id: "howto-fees",

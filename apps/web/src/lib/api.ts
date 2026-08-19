@@ -1,9 +1,10 @@
 /**
- * Call the Express API through a same-origin Next rewrite (`/api/backend/*`).
- * That keeps auth cookies first-party and avoids collisions with App Router pages
- * like `/appointments` and `/messages`.
+ * Call the Express API.
+ * Local Next: same-origin `/api/backend/*` rewrite (cookies work).
+ * GitHub Pages / static preview: `NEXT_PUBLIC_API_URL` when set; otherwise
+ * callers should use browser public-integration fallbacks (Nager/openFDA).
  */
-const API_BASE = "/api/backend";
+import { apiRequestBase, isGithubPagesRuntime } from "./runtime-config";
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -20,8 +21,21 @@ type RequestOptions = {
   body?: unknown;
 };
 
+export function isStaticSiteWithoutApi(): boolean {
+  return isGithubPagesRuntime() && !apiRequestBase();
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const base = apiRequestBase();
+  if (!base) {
+    throw new ApiError(
+      "API is not available on this static site. Use guest browse, or run the local preview with an API.",
+      503
+    );
+  }
+
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  const response = await fetch(url, {
     method: options.method ?? "GET",
     credentials: "include",
     headers: {
